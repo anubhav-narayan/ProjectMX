@@ -63,8 +63,10 @@ module mxalu11u (
 
 `ifdef WAVE
 	initial begin
-		$dumpfile("mxalu11u.vcd");
-		$dumpvars(0, mxalu11u);
+		if(`WAVE == "ALU") begin
+			$dumpfile("mxalu11u.vcd");
+			$dumpvars(0, mxalu11u);
+		end
 	end
 `endif
 

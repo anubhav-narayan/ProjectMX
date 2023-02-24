@@ -6,6 +6,7 @@ test_dir = os.path.dirname(__file__)
 
 
 def test_ALU():
+    os.environ['SIM'] = 'verilator'
     run(
         verilog_sources=[
             os.path.join(test_dir, "../fast_carry.v"),
@@ -16,11 +17,7 @@ def test_ALU():
         ],
         toplevel="mxalu11u",
         module="tb_mxalu11u",
-        defines=[
-            "WAVE=1"
-        ],
-        # extra_args=[
-        #     "--coverage",
-        #     "--trace-fst"
-        # ]
+        extra_args=[
+            "--trace-fst"
+        ]
     )
