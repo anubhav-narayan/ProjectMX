@@ -34,7 +34,11 @@ module mxalu11u (
 	 input [7:0] b,
 	 input       cs_n
 );
+<<<<<<< HEAD
 	wire m, cn_n, cn4_n, cn8_n, a_b;
+=======
+	wire m, cn_n;
+>>>>>>> c91f802 (MX-ALU11U)
 	wire [3:0] s;
 	
 	mxalu181_rom inst_mxalu181_rom(
@@ -59,6 +63,7 @@ module mxalu11u (
 		.cn_n  (cn_n)
 	);
 
+<<<<<<< HEAD
 	alu_flags inst_alu_flags(
 		.flags(flags),
 		.f(f),
@@ -75,6 +80,12 @@ module mxalu11u (
 			$dumpfile("mxalu11u.vcd");
 			$dumpvars(0, mxalu11u);
 		end
+=======
+`ifdef WAVE
+	initial begin
+		$dumpfile("mxalu11u.vcd");
+		$dumpvars(0, mxalu11u);
+>>>>>>> c91f802 (MX-ALU11U)
 	end
 `endif
 
