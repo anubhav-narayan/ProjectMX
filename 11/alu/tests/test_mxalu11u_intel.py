@@ -8,16 +8,15 @@ test_dir = os.path.dirname(__file__)
 def test_ALU():
     run(
         verilog_sources=[
-            os.path.join(test_dir, "../fast_carry.v"),
-            os.path.join(test_dir, "../74181.v"),
-            os.path.join(test_dir, "../mxalu_181.v"),
-            os.path.join(test_dir, "../mxalu_rom.v"),
-            os.path.join(test_dir, "../mxalu11u.v")
+            os.path.join(test_dir, "../mxalu11u_intel.v")
         ],
-        toplevel="mxalu11u",
+        toplevel="mxalu11u_intel",
         module="tb_mxalu11u",
+        includes=[
+            "/usr/share/yosys/intel_alm/common/",
+        ],
         defines=[
-            "WAVE=1"
+            "WAVE=1",
         ],
         # extra_args=[
         #     "--coverage",

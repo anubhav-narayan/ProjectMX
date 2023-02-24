@@ -1,5 +1,5 @@
 /*****************************************************************************
- * MX 1 byte Data 1 byte Address Unsigned ALU
+ * MX 1 byte Data 1 byte Address Unsigned ALU (MXALU11U)
  * Copyright 2023 Anubhav Mattoo
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -36,7 +36,6 @@ module mxalu11u (
 	 input [7:0] b,
 	 input       cs_n
 );
-	parameter TEST = 0;
 	wire m, cn_n;
 	wire [3:0] s;
 	
@@ -62,12 +61,11 @@ module mxalu11u (
 		.cn_n  (cn_n)
 	);
 
+`ifdef WAVE
 	initial begin
-		if (TEST) begin
-			$dumpfile("mxalu11u.vcd");
-			$dumpvars(0, mxalu11u);
-		end
+		$dumpfile("mxalu11u.vcd");
+		$dumpvars(0, mxalu11u);
 	end
-
+`endif
 
 endmodule
