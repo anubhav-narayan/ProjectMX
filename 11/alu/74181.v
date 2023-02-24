@@ -15,6 +15,7 @@ module alu181 (
 	 input       cn_n
 );
 
+	parameter TEST = 0;
 	wire [3:0] s21_data, s31_data;
 	wire [3:0] sr_data;
 	wire [8:0] gr_data;
@@ -82,6 +83,13 @@ module alu181 (
 	assign f = sr_data ^ (s31_data ^ s21_data);
 	assign a_b = &f;
 
+	initial begin
+		if (TEST) begin
+			$dumpfile("alu181.vcd");
+			$dumpvars(0, alu181);
+		end
+	end
+
 
 endmodule
 
@@ -123,7 +131,7 @@ module gr(
 	
 	assign x = ~(dt[7] & dt[5] & dt[3] & dt[1]);
 	assign y = ~|{dt[8], (&dt[7:6]), (&{dt[7], dt[5:4]}), (&{dt[7], dt[5], dt[3:2]})};
-	assign cn4_n = ~((x & dt[0]) | ~y);
+	assign cn4_n = ((~x & dt[0]) | ~y);
 
 endmodule
 
@@ -147,3 +155,4 @@ module sr3reduction(
 );
 	assign f = ~((&{dt[7:4], dt[0]}) | (&{dt[5:3], dt[0]}) | (&{dt[4], dt[2], dt[0]}) | (&dt[1:0]));
 endmodule
+

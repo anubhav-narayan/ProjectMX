@@ -38,7 +38,7 @@ module mxalu_181(
 		.b    (b[7:4]),
 		.m    (m),
 		.s    (s),
-		.cn_n (cnx)
+		.cn_n (cn4_n)
 	);
 
 	fast_carry inst_cgp(
@@ -47,7 +47,7 @@ module mxalu_181(
 		.po_n (y),
 		.g_n  ({xh, xl}),
 		.p_n  ({yh, yl}),
-		.cn   (~cn_n)
+		.cn   (cn_n)
 	);
 
 	assign a_b = &a_b_x;

@@ -10,7 +10,7 @@ module mxalu11u (
 	 input [7:0] b,
 	 input       cs_n
 );
-	
+	parameter TEST = 1;
 	wire m, cn_n;
 	wire [3:0] s;
 	
@@ -35,6 +35,13 @@ module mxalu11u (
 		.m     (m),
 		.cn_n  (cn_n)
 	);
+
+	initial begin
+		if (TEST) begin
+			$dumpfile("mxalu11u.vcd");
+			$dumpvars(0, mxalu11u);
+		end
+	end
 
 
 endmodule

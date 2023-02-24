@@ -61,7 +61,7 @@ module mxalu181_rom(
 		rom[11] = 6'h16;
 		rom[12] = 6'h00;
 		rom[13] = 6'h1F;
-		rom[14] = 6'h19;
+		rom[14] = 6'h1C;
 		rom[15] = 6'h33;
 		{m, cn_n, s} = rom[opcode];
 	end
