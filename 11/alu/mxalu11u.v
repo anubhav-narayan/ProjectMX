@@ -28,15 +28,13 @@ module mxalu11u (
 	output [7:0] f,
 	output       x,
 	output       y,
-	output       a_b,
-	output       cn4_n,
-	output       cn8_n,
+	output [7:0] flags,
 	 input [3:0] opcode,
 	 input [7:0] a,
 	 input [7:0] b,
 	 input       cs_n
 );
-	wire m, cn_n;
+	wire m, cn_n, cn4_n, cn8_n, a_b;
 	wire [3:0] s;
 	
 	mxalu181_rom inst_mxalu181_rom(
@@ -60,6 +58,16 @@ module mxalu11u (
 		.m     (m),
 		.cn_n  (cn_n)
 	);
+
+	alu_flags inst_alu_flags(
+		.flags(flags),
+		.f(f),
+		.a_b(a_b),
+		.cn_n(cn_n),
+		.cn4_n(cn4_n),
+		.cn8_n(cn8_n)
+	);
+
 
 `ifdef WAVE
 	initial begin

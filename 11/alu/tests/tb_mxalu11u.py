@@ -152,9 +152,9 @@ async def test_add(dut):
             dut.cs_n.value = 1
             await Timer(1)
             res = int(dut.f.value)
-            carry = int(dut.cn8_n.value)
+            carry = int(dut.flags.value)
             assert res == ((x + y) & 0xFF)
-            assert carry == ~((x + y) >> 8) & 0x01
+            assert carry == ((x + y) >> 8) & 0x02
 
 
 async def test_adc(dut):
@@ -171,9 +171,9 @@ async def test_adc(dut):
             dut.cs_n.value = 1
             await Timer(1)
             res = int(dut.f.value)
-            carry = int(dut.cn8_n.value)
+            carry = int(dut.flags.value)
             assert res == ((x + y + 1) & 0xFF)
-            assert carry == ~((x + y + 1) >> 8) & 0x01
+            assert carry == ((x + y + 1) >> 8) & 0x02
 
 
 async def test_sub(dut):
