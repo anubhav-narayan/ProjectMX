@@ -7,3 +7,6 @@
 *.pyc
 *.pytest_cache*
 *sim_build*
+*/isa_sim/*
+*/qprj/*
+*runs*
