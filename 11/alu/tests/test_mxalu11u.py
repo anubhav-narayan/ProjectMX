@@ -13,11 +13,14 @@ def test_ALU():
             os.path.join(test_dir, "../74181.v"),
             os.path.join(test_dir, "../mxalu_181.v"),
             os.path.join(test_dir, "../mxalu_rom.v"),
+            os.path.join(test_dir, "../alu_flags.v"),
             os.path.join(test_dir, "../mxalu11u.v")
         ],
         toplevel="mxalu11u",
         module="tb_mxalu11u",
         extra_args=[
-            "--trace-fst"
+            "--trace-fst",
+            "--dump-graph",
+            "--dump-tree-json"
         ]
     )
