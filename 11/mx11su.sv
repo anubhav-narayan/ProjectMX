@@ -7,6 +7,25 @@ module mx11su(
 	 input  wire       ins_rd_txn_ack,
 	 input  wire       ins_rd_txn_cpl,
 
+	// MX Bus Write Master Data
+    output  wire       data_wr_txn_start,
+    output  wire [7:0] data_wr_data,
+     input  wire       data_wr_ready,
+    output  wire [7:0] data_wr_addr,
+     input  wire       data_wr_txn_ack,
+     input  wire       data_wr_txn_cpl,
+    
+    // MX Bus Read Master Data
+    output  wire       data_rd_txn_start,
+     input  wire [7:0] data_rd_data,
+     input  wire       data_rd_ready,
+    output  wire [7:0] data_rd_addr,
+     input  wire       data_rd_txn_ack,
+     input  wire       data_rd_txn_cpl,
+
+    // INTR
+     input  wire nmi,
+
 	// CLK & RST
 	 input  wire clk,
 	 input  wire rst
@@ -14,28 +33,75 @@ module mx11su(
 
 	// Internal Wiring
 	wire [15:0][7:0] reg_line;
-	wire [15:0][7:0] data_line;
-	wire [7:0] load_addr;
-	wire [7:0] insr_o;
-	wire [7:0] insr_w;
+	wire [15:0][7:0] m_data_line;
+	wire [15:0][7:0] p0_data_line;
+	wire [15:0][7:0] p1_data_line;
+	wire [15:0][7:0] p2_data_line;
+	wire [7:0] m_load_addr;
+	wire [7:0] p0_load_addr;
+	wire [7:0] p1_load_addr;
+	wire [7:0] p2_load_addr;
+	wire [7:0] insr;
+	wire       insr_le;
 	wire [3:0] src_a;
 	wire [3:0] src_b;
 	wire [3:0] dst_f;
 	wire [3:0] opcode;
 	wire [7:0] flags;
+	wire       fetch;
+	wire [3:0] reg_src;
+	wire [3:0] reg_dst;
+	wire [7:0] biu_rd_addr;
+	wire [7:0] biu_rdata;
+	wire       biu_load_ready;
+	wire       biu_load;
+	wire       biu_load_valid;
+	wire [7:0] biu_wr_addr;
+	wire [7:0] biu_wdata;
+	wire       biu_store_ready;
+	wire       biu_store;
+	wire       biu_store_valid;
+	wire       load_ready;
+	wire       load;
+	wire       load_valid;
+	wire       store_ready;
+	wire       store;
+	wire       store_valid;
+	wire       load_en;
+	wire       lr;
+	wire [1:0] mux_sel;
+
+	typedef enum bit[2:0] {
+		RESET,
+		FETCH,
+		DEX,
+		DLS,
+		INTR,
+		HALT
+	} state;
+
 
 	// Internal Registers
-	reg [1:0] stat_reg;
-	reg       load_en;
+	state mstate;
+	
+	// Internal Wiring
+	assign fetch = (mstate == FETCH);
 
-	load_register#(
-	    .WORD_LENGTH(8)
-	) insr (
-		.q(insr_o),
-		.data(insr_w),
-		.load(insr_le),
-		.clk(clk),
-		.rst(rst)
+	data_mux_4_1 #(
+		.WORD_LENGTH(8),
+		.DEPTH(16)
+	) inst_data_mux_4_1 (
+		.m_data_line  (m_data_line),
+		.m_load_addr  (m_load_addr),
+		.p0_data_line (p0_data_line),
+		.p0_load_addr (p0_load_addr),
+		.p1_data_line (p1_data_line),
+		.p1_load_addr (p1_load_addr),
+		.p2_data_line (p2_data_line),
+		.p2_load_addr (p2_load_addr),
+		.p3_data_line ('h0),
+		.p3_load_addr ('h0),
+		.sel          (mux_sel)
 	);
 
 	reg_tap #(
@@ -50,16 +116,33 @@ module mx11su(
 
 	always_ff @(posedge clk) begin
 		if(rst) begin
-			stat_reg <= 0;
+			mstate <= RESET;
 		end else begin
-			case (stat_reg)
-				2'b00: begin // FETCH
-					if (insr_le) begin
-						stat_reg <= 2'b01; // DEX
+			case (mstate)
+				RESET: begin
+					// TODO: Check everything is out of reset
+					mstate <= FETCH;
+				end
+				FETCH: begin
+					if (nmi) begin
+						mstate <= INTR;
+					end else if (insr_le) begin
+						mstate <= DEX;
 					end
 				end
-				2'b01: begin // DEX
-					stat_reg <= 2'b00; // FETCH
+				DEX: begin
+					if (nmi) begin
+						mstate <= INTR;
+					end else if (load | store) begin
+						mstate <= DLS;
+					end else begin
+						mstate <= FETCH;
+					end
+				end
+				DLS: begin
+					if ((load_ready & load_valid) | (store_ready & store_valid)) begin
+						mstate <= FETCH;
+					end
 				end
 				default : /* default */;
 			endcase
@@ -71,18 +154,26 @@ module mx11su(
 		.src_b    (src_b),
 		.dst_f    (dst_f),
 		.opcode   (opcode),
+		.load     (load),
+		.store    (store),
+		.reg_src  (reg_src),
+		.reg_dst  (reg_dst),
 		.load_en  (load_en),
+		.mux_sel  (mux_sel),
+		.lr       (lr),
 		.alu_ce_n (alu_ce_n),
+		.bs_ce_n  (bs_ce_n),
 		.flags    (flags),
-		.fetch    (~|stat_reg),
-		.insr     (insr_o),
-		.ce_n     (alu_ce_n)
+		.fetch    (fetch),
+		.insr_le  (insr_le),
+		.insr     (insr),
+		.ce_n     (1'b0)
 	);
 
 	mx11seu inst_mx11seu (
 		.reg_line  (reg_line),
-		.data_line (data_line),
-		.load_addr (load_addr),
+		.data_line (p0_data_line),
+		.load_addr (p0_load_addr),
 		.fetch     (fetch),
 		.opcode    (opcode),
 		.src_a     (src_a),
@@ -91,17 +182,89 @@ module mx11su(
 		.cs_n      (alu_ce_n)
 	);
 
+	mx11bshift inst_mx11bshift(
+		.reg_line  (reg_line),
+		.data_line (p2_data_line),
+		.load_addr (p2_load_addr),
+		.lr        (lr),
+		.opcode    (opcode),
+		.bs_ce_n   (bs_ce_n)
+	);
+
+
 	mxregs #(
 		.WORD_LENGTH(8),
 		.DEPTH(16)
 	) inst_mxregs (
 		.reg_line  (reg_line),
-		.data_line (data_line),
-		.load_addr (load_addr),
+		.data_line (m_data_line),
+		.load_addr (m_load_addr),
 		.load_en   (load_en),
 		.clk       (clk),
 		.rst       (rst)
 	);
+
+	mxbiu_data #(
+		.ADDR_WIDTH(8),
+		.DATA_WIDTH(8)
+	) inst_mxbiu_data (
+		.m0_wr_txn_start (data_wr_txn_start),
+		.m0_wr_data      (data_wr_data),
+		.m0_wr_ready     (data_wr_ready),
+		.m0_wr_addr      (data_wr_addr),
+		.m0_wr_txn_ack   (data_wr_txn_ack),
+		.m0_wr_txn_cpl   (data_wr_txn_cpl),
+		.m0_rd_txn_start (data_rd_txn_start),
+		.m0_rd_data      (data_rd_data),
+		.m0_rd_ready     (data_rd_ready),
+		.m0_rd_addr      (data_rd_addr),
+		.m0_rd_txn_ack   (data_rd_txn_ack),
+		.m0_rd_txn_cpl   (data_rd_txn_cpl),
+		.rd_addr         (biu_rd_addr),
+		.rdata           (biu_rdata),
+		.load_ready      (biu_load_ready),
+		.load            (biu_load),
+		.load_valid      (biu_load_valid),
+		.wr_addr         (biu_wr_addr),
+		.wdata           (biu_wdata),
+		.store_ready     (biu_store_ready),
+		.store           (biu_store),
+		.store_valid     (biu_store_valid),
+		.clk             (clk),
+		.rst             (rst)
+	);
+
+
+	mxlsu #(
+		.ADDR_WIDTH(8),
+		.DATA_WIDTH(8),
+		.REGBUS_WIDTH(16)
+	) inst_mxlsu (
+		.biu_rd_addr     (biu_rd_addr),
+		.biu_rdata       (biu_rdata),
+		.biu_load_ready  (biu_load_ready),
+		.biu_load        (biu_load),
+		.biu_load_valid  (biu_load_valid),
+		.biu_wr_addr     (biu_wr_addr),
+		.biu_wdata       (biu_wdata),
+		.biu_store_ready (biu_store_ready),
+		.biu_store       (biu_store),
+		.biu_store_valid (biu_store_valid),
+		.reg_line        (reg_line),
+		.data_line       (p1_data_line),
+		.load_addr       (p1_load_addr),
+		.addr_src        (4'h3),
+		.reg_dst         (reg_dst),
+		.load_ready      (load_ready),
+		.load            (load),
+		.load_valid      (load_valid),
+		.addr_dst        (4'h3),
+		.reg_src         (reg_src),
+		.store_ready     (store_ready),
+		.store           (store),
+		.store_valid     (store_valid)
+	);
+
 
 	mx11_ins_fetch #(
 		.ADDR_WIDTH(8),
@@ -115,8 +278,8 @@ module mx11su(
 		.ins_rd_addr      (ins_rd_addr),
 		.ins_rd_txn_ack   (ins_rd_txn_ack),
 		.ins_rd_txn_cpl   (ins_rd_txn_cpl),
-		.fetch            (~|stat_reg),
-		.insr             (insr_w),
+		.fetch            (fetch),
+		.insr             (insr),
 		.load_en          (insr_le),
 		.clk              (clk),
 		.rst              (rst)

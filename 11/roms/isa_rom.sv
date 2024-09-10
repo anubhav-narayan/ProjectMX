@@ -30,28 +30,34 @@ module su_isa_rom(
 	output logic [3:0] src_b,
 	output logic [3:0] dst_f,
 	output logic [3:0] opcode,
-	output  wire       load_en,
+	output logic       load,
+	output logic       store,
+	output logic [3:0] reg_src,
+	output logic [3:0] reg_dst,
+	output logic       load_en,
+	output logic [1:0] mux_sel,
+	output logic       lr,
 	output  wire       alu_ce_n,
+	output  wire       bs_ce_n,
 	 input  wire [7:0] flags,
 	 input  wire       fetch,
+	 input  wire       insr_le,
 	 input  wire [7:0] insr,
 	 input  wire       ce_n
 );
+	wire [1:0] fsel;
+	wire fval;
 
-	wire rom_alu_ce_n;
-	wire rom_mov_ce_n;
-	wire rom_jmp_ce_n;
-
-	assign rom_alu_ce_n = insr[7];
-	assign rom_mov_ce_n = |{~insr[7], insr[6], insr[5]};
-	assign rom_jmp_ce_n = insr[7:4] ^ 4'hA;
-	assign load_en = fetch | (~ce_n & |insr);
 	assign alu_ce_n = ce_n;
+	assign bs_ce_n = ce_n;
 
+	reg [1:0] rom_jmp_f [7:0];
 	reg [11:0] rom_mov [31:0];
 	reg [11:0] rom_alu [7:0];
 	reg [15:0] rom_jmp [31:0];
+	reg [3:0] rom_lsu [7:0];
 
+	// MOV ROM
 	initial begin
 		rom_mov[5'h00] = 12'h001; // A X
 		rom_mov[5'h01] = 12'h100; // X A
@@ -87,6 +93,7 @@ module su_isa_rom(
 		rom_mov[5'h1F] = 12'h70F; // FLAGS R3
 	end
 
+	// ALU DP ROM
 	initial begin
 		rom_alu[3'h0] = 12'h010; // 00_10_01: A X A
 		rom_alu[3'h1] = 12'h001; // 00_00_01: A A X
@@ -98,85 +105,159 @@ module su_isa_rom(
 		rom_alu[3'h7] = 12'h333; // 11_11_11: D D D
 	end
 
-	always @(*) begin
-		case ({ce_n, fetch})
-			2'b00: begin
-				case ({rom_alu_ce_n, rom_mov_ce_n, rom_jmp_ce_n})
-					3'b011: begin
+	// JMP ROM
+	initial begin
+		rom_jmp_f[3'h0] = 2'b00; // ZERO
+		rom_jmp_f[3'h1] = 2'b00; // ZERO
+		rom_jmp_f[3'h2] = 2'b01; // CARRY
+		rom_jmp_f[3'h3] = 2'b01; // CARRY
+		rom_jmp_f[3'h4] = 2'b10; // EQUAL
+		rom_jmp_f[3'h5] = 2'b10; // EQUAL
+		rom_jmp_f[3'h6] = 2'b11; // LT
+		rom_jmp_f[3'h7] = 2'b11; // LT
+		rom_jmp[5'h00] = 16'h6030; // JNZ &[D]
+		rom_jmp[5'h01] = 16'h6060; // JNZ &[D]
+		rom_jmp[5'h02] = 16'h6060; // JZ &[D]
+		rom_jmp[5'h03] = 16'h6030; // JZ &[D]
+		rom_jmp[5'h04] = 16'h6030; // JNC &[D]
+		rom_jmp[5'h05] = 16'h6060; // JNC &[D]
+		rom_jmp[5'h06] = 16'h6060; // JC &[D]
+		rom_jmp[5'h07] = 16'h6030; // JC &[D]
+		rom_jmp[5'h08] = 16'h6030; // JNE &[D]
+		rom_jmp[5'h09] = 16'h6060; // JNE &[D]
+		rom_jmp[5'h0A] = 16'h6060; // JE &[D]
+		rom_jmp[5'h0B] = 16'h6030; // JE &[D]
+		rom_jmp[5'h0C] = 16'h6030; // JGT &[D]
+		rom_jmp[5'h0D] = 16'h6060; // JGT &[D]
+		rom_jmp[5'h0E] = 16'h6060; // JLT &[D]
+		rom_jmp[5'h0F] = 16'h6030; // JLT &[D]
+		rom_jmp[5'h10] = 16'h6638; // JNZ &[INSP+D]
+		rom_jmp[5'h11] = 16'h6060; // JNZ &[INSP+D]
+		rom_jmp[5'h12] = 16'h6060; // JZ &[INSP+D]
+		rom_jmp[5'h13] = 16'h6638; // JZ &[INSP+D]
+		rom_jmp[5'h14] = 16'h6638; // JNC &[INSP+D]
+		rom_jmp[5'h15] = 16'h6060; // JNC &[INSP+D]
+		rom_jmp[5'h16] = 16'h6060; // JC &[INSP+D]
+		rom_jmp[5'h17] = 16'h6638; // JC &[INSP+D]
+		rom_jmp[5'h18] = 16'h6638; // JNE &[INSP+D]
+		rom_jmp[5'h19] = 16'h6060; // JNE &[INSP+D]
+		rom_jmp[5'h1A] = 16'h6060; // JE &[INSP+D]
+		rom_jmp[5'h1B] = 16'h6638; // JE &[INSP+D]
+		rom_jmp[5'h1C] = 16'h6638; // JGT &[INSP+D]
+		rom_jmp[5'h1D] = 16'h6060; // JGT &[INSP+D]
+		rom_jmp[5'h1E] = 16'h6060; // JLT &[INSP+D]
+		rom_jmp[5'h1F] = 16'h6638; // JLT &[INSP+D]
+	end
+
+	initial begin
+		rom_lsu[3'h0] = 4'h0;
+		rom_lsu[3'h1] = 4'h1;
+		rom_lsu[3'h2] = 4'h2;
+		rom_lsu[3'h3] = 4'h7;
+		rom_lsu[3'h4] = 4'hC;
+		rom_lsu[3'h5] = 4'hD;
+		rom_lsu[3'h6] = 4'hE;
+		rom_lsu[3'h7] = 4'hF;
+	end
+
+
+	assign fsel = rom_jmp_f[insr[2:0]];
+	assign fval = fsel[1] ? fsel[0] ? flags[3]
+	                                : flags[2]
+	                      : fsel[0] ? flags[1]
+	                                : flags[0];
+
+	always_comb begin
+		if (~ce_n) begin
+			if (fetch) begin
+				{dst_f, src_b, src_a} = 12'h606;
+				opcode = 4'hC;
+				lr = 1'b0;
+				load = 1'b0;
+				store = 1'b0;
+				reg_src = 4'h0;
+				reg_dst = 4'h0;
+				mux_sel = 2'b00;
+				load_en = insr_le;
+			end else begin
+				case (insr[7:4])
+					4'h0, 4'h1, 4'h2, 4'h3, 4'h4, 4'h6, 4'h7: begin
 						{dst_f, src_b, src_a} = rom_alu[insr[6:4]];
-						opcode = 4'h0;
-					end
-					3'b101: begin
-						{dst_f, src_b, src_a} = rom_mov[insr[4:0]];
 						opcode = insr[3:0];
+						lr = 1'b0;
+						load = 1'b0;
+						store = 1'b0;
+						reg_src = 4'h0;
+						reg_dst = 4'h0;
+						mux_sel = 2'b00;
+						load_en = 1'b1;
 					end
-					3'b110: begin
-						case (insr[3:0])
-							4'h0: begin
-								{dst_f, src_b, src_a, opcode} = flags[0] ? 16'h6060 : 16'h6030; // JNZ &[D]
-							end
-							4'h1: begin
-								{dst_f, src_b, src_a, opcode} = flags[0] ? 16'h6030 : 16'h6060; // JZ &[D]
-							end
-							4'h2: begin
-								{dst_f, src_b, src_a, opcode} = flags[1] ? 16'h6060 : 16'h6030; // JNC &[D]
-							end
-							4'h3: begin
-								{dst_f, src_b, src_a, opcode} = flags[1] ? 16'h6030 : 16'h6060; // JC &[D]
-							end
-							4'h4: begin
-								{dst_f, src_b, src_a, opcode} = flags[3] ? 16'h6030 : 16'h6060; // JGT &[D]
-							end
-							4'h5: begin
-								{dst_f, src_b, src_a, opcode} = flags[4] ? 16'h6030 : 16'h6060; // JLT &[D]
-							end
-							4'h6: begin
-								{dst_f, src_b, src_a, opcode} = flags[3] & flags[2] ? 16'h6030 : 16'h6060; // JGE &[D]
-							end
-							4'h7: begin
-								{dst_f, src_b, src_a, opcode} = flags[4] & flags[2] ? 16'h6030 : 16'h6060; // JLE &[D]
-							end
-							4'h8: begin
-								{dst_f, src_b, src_a, opcode} = flags[0] ? 16'h6060 : 16'h6638; // JNZ &[INSP+D]
-							end
-							4'h9: begin
-								{dst_f, src_b, src_a, opcode} = flags[0] ? 16'h6638 : 16'h6060; // JZ &[INSP+D]
-							end
-							4'hA: begin
-								{dst_f, src_b, src_a, opcode} = flags[1] ? 16'h6060 : 16'h6638; // JNC &[INSP+D]
-							end
-							4'hB: begin
-								{dst_f, src_b, src_a, opcode} = flags[1] ? 16'h6638 : 16'h6060; // JC &[INSP+D]
-							end
-							4'hC: begin
-								{dst_f, src_b, src_a, opcode} = flags[3] ? 16'h6638 : 16'h6060; // JGT &[INSP+D]
-							end
-							4'hD: begin
-								{dst_f, src_b, src_a, opcode} = flags[4] ? 16'h6638 : 16'h6060; // JLT &[INSP+D]
-							end
-							4'hE: begin
-								{dst_f, src_b, src_a, opcode} = flags[3] & flags[2] ? 16'h6638 : 16'h6060; // JGE &[INSP+D]
-							end
-							4'hF: begin
-								{dst_f, src_b, src_a, opcode} = flags[4] & flags[2] ? 16'h6638 : 16'h6060; // JLE &[INSP+D]
-							end
-						endcase
+					4'h8, 4'h9: begin
+						{dst_f, src_b, src_a} = rom_mov[insr[4:0]];
+						opcode = 4'h0;
+						lr = 1'b0;
+						load = 1'b0;
+						store = 1'b0;
+						reg_src = 4'h0;
+						reg_dst = 4'h0;
+						mux_sel = 2'b00;
+						load_en = 1'b1;
+					end
+					4'hA: begin
+						{dst_f, src_b, src_a, opcode} = rom_jmp[{insr[3:0], fval}];
+						load = 1'b0;
+						lr = 1'b0;
+						store = 1'b0;
+						reg_src = 4'h0;
+						reg_dst = 4'h0;
+						mux_sel = 2'b00;
+						load_en = 1'b1;
+					end
+					4'hB: begin
+						load = ~insr[3];
+						store = insr[3];
+						{reg_dst, reg_src} = {2{rom_lsu[insr[2:0]]}};
+						mux_sel = 2'b01;
+						{dst_f, src_b, src_a} = 12'h000;
+						opcode = 4'h0;
+						lr = 1'b0;
+						load_en = ~insr[3];
+					end
+					4'hC, 4'hD: begin
+						{dst_f, src_b, src_a} = 12'h000;
+						opcode = insr[3:0];
+						lr = insr[4];
+						load = 1'b0;
+						store = 1'b0;
+						reg_src = 4'h0;
+						reg_dst = 4'h0;
+						mux_sel = 2'b10;
+						load_en = 1'b1;
 					end
 					default : begin
 						{dst_f, src_b, src_a} = 12'h000;
 						opcode = 4'h0;
+						load = 1'b0;
+						lr = 1'b0;
+						store = 1'b0;
+						reg_src = 4'h0;
+						reg_dst = 4'h0;
+						mux_sel = 2'b00;
+						load_en = 1'b0;
 					end
 				endcase
 			end
-			2'b01: begin
-				{dst_f, src_b, src_a} = 12'h606;
-				opcode = 4'hC;
-			end
-			default: begin
-				{dst_f, src_b, src_a} = 12'h000;
-				opcode = 4'h0;
-			end
-		endcase
+		end else begin
+			{dst_f, src_b, src_a} = 12'h000;
+			opcode = 4'h0;
+			load = 1'b0;
+			lr = 1'b0;
+			store = 1'b0;
+			reg_src = 4'h0;
+			reg_dst = 4'h0;
+			mux_sel = 2'b00;
+			load_en = 1'b0;
+		end
 	end
 
 

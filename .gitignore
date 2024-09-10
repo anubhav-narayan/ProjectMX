@@ -2,6 +2,7 @@
 
 *.xml
 *.vcd
+*.bak
 *.vvp
 *__pycache__*
 *.pyc
