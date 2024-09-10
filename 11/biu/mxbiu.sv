@@ -63,6 +63,7 @@ module mxbiu_ins#(
 		if(rst) begin
 			rd_txn_start_r <= 1'b0;
 			rd_state <= 2'h0;
+			rd_data_r <= 'h0;
 		end else begin
 			case (rd_state)
 				2'h0: begin // IDLE
@@ -117,7 +118,7 @@ module mxbiu_data#(
 
     // Internal Signal
      input logic [ADDR_WIDTH-1:0] rd_addr,
-	 input logic [DATA_WIDTH-1:0] rdata,
+	output logic [DATA_WIDTH-1:0] rdata,
 	output logic                  load_ready,
 	 input logic                  load,
 	output logic                  load_valid,
@@ -151,7 +152,8 @@ module mxbiu_data#(
 	assign m0_wr_data = wr_data_r;
 	assign load_valid = m0_rd_txn_cpl;
 	assign store_valid = m0_wr_txn_cpl;
-
+	assign load_ready = m0_rd_ready;
+	assign store_ready = m0_wr_ready;
 
 	always @(posedge clk) begin
 		if(rst) begin
@@ -188,13 +190,14 @@ module mxbiu_data#(
 	always @(posedge clk) begin
 		if(rst) begin
 			wr_txn_start_r <= 1'b0;
+			wr_data_r <= 'h0;
 			wr_state <= 2'h0;
 		end else begin
 			 case (wr_state)
 			 	2'h0: begin // IDLE
 			 		if (m0_wr_ready & store) begin
 						wr_addr_r <= wr_addr;
-						wr_data_r <= mbr_in;
+						wr_data_r <= wdata;
 			 			wr_txn_start_r <= 1'b1;
 			 			wr_state <= 2'h1; // TXN_START
 			 		end
