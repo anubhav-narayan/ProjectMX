@@ -32,7 +32,7 @@ module mx11_ins_fetch#(
 	) inst_reg_tap (
 		.data     (insp),
 		.reg_line (reg_line),
-		.reg_addr (4'h7)
+		.reg_addr (4'h6)
 	);
 
 	mxbiu_ins #(
