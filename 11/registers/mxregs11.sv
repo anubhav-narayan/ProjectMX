@@ -37,12 +37,12 @@ endmodule
 module mxreg_load_decoder_11#(
     parameter DEPTH = 16
 )(
-	output  reg [        DEPTH-1:0] load,
-	 input wire [              7:0] load_addr,
-	 input wire                     load_en
+	output logic [        DEPTH-1:0] load,
+	 input  wire [              7:0] load_addr,
+	 input  wire                     load_en
 );
 
-	always_comb begin
+	always_ff @(*) begin
 		if (load_en) begin
 			case (load_addr)
 				8'h00: load = 16'h0001; // A
