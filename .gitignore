@@ -1,0 +1,12 @@
+# Specify filepatterns you want git to ignore.
+
+*.xml
+*.vcd
+*.vvp
+*__pycache__*
+*.pyc
+*.pytest_cache*
+*sim_build*
+*/isa_sim/*
+*/qprj/*
+*runs*
