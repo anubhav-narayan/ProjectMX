@@ -28,7 +28,7 @@ module mxalu11u (
 	output [7:0] f,
 	output       x,
 	output       y,
-	output [7:0] flags,
+	output [4:0] flags,
 	 input [3:0] opcode,
 	 input [7:0] a,
 	 input [7:0] b,

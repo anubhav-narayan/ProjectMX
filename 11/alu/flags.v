@@ -12,7 +12,7 @@ module alu_flags (
 	assign flags[2] = a_b; // Equal
 	assign flags[3] = ~cn_n & cn8_n; // Lesser Than
 	assign flags[4] = cn_n & ~cn8_n; // Greater Than
-	assign flags[5] = ~cn4_n; // Half Carry
+	assign flags[5] = 0;
 	assign flags[6] = 0;
 	assign flags[7] = 0;
 
