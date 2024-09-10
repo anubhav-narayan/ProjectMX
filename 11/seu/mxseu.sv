@@ -14,12 +14,14 @@ module mx11seu(
 	
 	// Internal Wire
 	wire [7:0] f;
-	wire [7:0] flags;
+	wire [4:0] flags;
 	wire [7:0] a;
 	wire [7:0] b;
 
-	assign load_addr = ~|opcode ? {4'h0, dst_f}
-	                            : fetch ? {4'h0, dst_f} : {4'h1, dst_f};
+	// assign load_addr = |opcode & fetch ? {4'h0, dst_f} : {4'h1, dst_f};
+	assign load_addr = fetch ? {4'h0, dst_f}
+	                         : |opcode ? {4'h1, dst_f}
+	                                   : {4'h0, dst_f};
 	
 	always @(*) begin
 		case (dst_f)
@@ -30,7 +32,7 @@ module mx11seu(
 			4'h4: data_line = {{11{8'h00}}, f, {4{8'h00}}};
 			4'h5: data_line = {{10{8'h00}}, f, {5{8'h00}}};
 			4'h6: data_line = {{9{8'h00}}, f, {6{8'h00}}};
-			4'h7: data_line = {{8{8'h00}}, (|opcode ? f : flags), {7{8'h00}}}; // FLAGS Handling
+			4'h7: data_line = {{8{8'h00}}, (|opcode ? f : {reg_line[7][7:5], flags}), {7{8'h00}}}; // FLAGS Handling
 			4'h8: data_line = {{7{8'h00}}, f, {8{8'h00}}};
 			4'h9: data_line = {{6{8'h00}}, f, {9{8'h00}}};
 			4'hA: data_line = {{5{8'h00}}, f, {10{8'h00}}};
