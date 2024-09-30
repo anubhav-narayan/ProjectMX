@@ -1,0 +1,3 @@
+[submodule "assembler.git"]
+	path = mxsm
+	url = git@github.com:anubhav-narayan/mxsm.git

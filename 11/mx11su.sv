@@ -25,6 +25,7 @@ module mx11su(
 
     // INTR
      input  wire nmi,
+     input  wire irq,
 
 	// CLK & RST
 	 input  wire clk,
@@ -37,18 +38,24 @@ module mx11su(
 	wire [15:0][7:0] p0_data_line;
 	wire [15:0][7:0] p1_data_line;
 	wire [15:0][7:0] p2_data_line;
+	wire [15:0][7:0] p3_data_line;
 	wire [7:0] m_load_addr;
 	wire [7:0] p0_load_addr;
 	wire [7:0] p1_load_addr;
 	wire [7:0] p2_load_addr;
+	wire [7:0] p3_load_addr;
 	wire [7:0] insr;
 	wire       insr_le;
 	wire [3:0] src_a;
 	wire [3:0] src_b;
 	wire [3:0] dst_f;
 	wire [3:0] opcode;
+	wire       ldi;
+	wire [7:0] ldv;
 	wire [7:0] flags;
 	wire       fetch;
+	wire       intr;
+	wire       halt;
 	wire [3:0] reg_src;
 	wire [3:0] reg_dst;
 	wire [7:0] biu_rd_addr;
@@ -69,6 +76,8 @@ module mx11su(
 	wire       store_valid;
 	wire       load_en;
 	wire       lr;
+	wire       alu_ce_n;
+	wire       bs_ce_n;
 	wire [1:0] mux_sel;
 
 	typedef enum bit[2:0] {
@@ -86,6 +95,8 @@ module mx11su(
 	
 	// Internal Wiring
 	assign fetch = (mstate == FETCH);
+	assign intr = (mstate == INTR);
+
 
 	data_mux_4_1 #(
 		.WORD_LENGTH(8),
@@ -99,10 +110,11 @@ module mx11su(
 		.p1_load_addr (p1_load_addr),
 		.p2_data_line (p2_data_line),
 		.p2_load_addr (p2_load_addr),
-		.p3_data_line ('h0),
-		.p3_load_addr ('h0),
+		.p3_data_line (p3_data_line),
+		.p3_load_addr (p3_load_addr),
 		.sel          (mux_sel)
 	);
+
 
 	reg_tap #(
 		.DATA_WIDTH(8),
@@ -126,6 +138,8 @@ module mx11su(
 				FETCH: begin
 					if (nmi) begin
 						mstate <= INTR;
+					end else if (irq & flags[7]) begin
+						mstate <= INTR;
 					end else if (insr_le) begin
 						mstate <= DEX;
 					end
@@ -135,13 +149,33 @@ module mx11su(
 						mstate <= INTR;
 					end else if (load | store) begin
 						mstate <= DLS;
+					end else if (irq & flags[7]) begin
+						mstate <= INTR;
+					end else if (halt) begin
+						mstate <= HALT;
 					end else begin
 						mstate <= FETCH;
 					end
 				end
 				DLS: begin
-					if ((load_ready & load_valid) | (store_ready & store_valid)) begin
-						mstate <= FETCH;
+					if (nmi) begin
+						mstate <= INTR;
+					end else if ((load_ready & load_valid) | (store_ready & store_valid)) begin
+						if (irq & flags[7]) begin
+							mstate <= INTR;
+						end else begin
+							mstate <= FETCH;
+						end
+					end
+				end
+				INTR: begin
+					mstate <= FETCH;
+				end
+				HALT: begin
+					if (nmi) begin
+						mstate <= INTR;
+					end else if (irq & flags[7]) begin
+						mstate <= INTR;
 					end
 				end
 				default : /* default */;
@@ -149,11 +183,14 @@ module mx11su(
 		end
 	end
 
+
 	su_isa_rom inst_su_isa_rom(
 		.src_a    (src_a),
 		.src_b    (src_b),
 		.dst_f    (dst_f),
 		.opcode   (opcode),
+		.ldi      (ldi),
+		.ldv      (ldv),
 		.load     (load),
 		.store    (store),
 		.reg_src  (reg_src),
@@ -165,22 +202,40 @@ module mx11su(
 		.bs_ce_n  (bs_ce_n),
 		.flags    (flags),
 		.fetch    (fetch),
+		.intr     (intr),
+		.halt     (halt),
 		.insr_le  (insr_le),
 		.insr     (insr),
 		.ce_n     (1'b0)
 	);
+
+	mx11_intr_ctrl inst_mx11_intr_ctrl(
+		.reg_line  (reg_line),
+		.data_line (p3_data_line),
+		.load_addr (p3_load_addr),
+		.nmi       (nmi),
+		.irq       (irq),
+		.intr      (intr),
+		.clk       (clk),
+		.rst       (rst)
+	);
+
+
 
 	mx11seu inst_mx11seu (
 		.reg_line  (reg_line),
 		.data_line (p0_data_line),
 		.load_addr (p0_load_addr),
 		.fetch     (fetch),
+		.ldi       (ldi),
+		.ldv       (ldv),
 		.opcode    (opcode),
 		.src_a     (src_a),
 		.src_b     (src_b),
 		.dst_f     (dst_f),
 		.cs_n      (alu_ce_n)
 	);
+
 
 	mx11bshift inst_mx11bshift(
 		.reg_line  (reg_line),
@@ -203,6 +258,7 @@ module mx11su(
 		.clk       (clk),
 		.rst       (rst)
 	);
+
 
 	mxbiu_data #(
 		.ADDR_WIDTH(8),

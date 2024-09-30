@@ -5,6 +5,8 @@ module mx11seu(
 	output logic       [7:0] load_addr,
 	// ALU OPS
 	 input logic             fetch,
+	 input logic             ldi,
+	 input logic       [7:0] ldv,
 	 input logic       [3:0] opcode,
 	 input logic       [3:0] src_a,
 	 input logic       [3:0] src_b,
@@ -19,11 +21,21 @@ module mx11seu(
 	wire [7:0] b;
 
 	// assign load_addr = |opcode & fetch ? {4'h0, dst_f} : {4'h1, dst_f};
-	assign load_addr = fetch ? {4'h0, dst_f}
-	                         : |opcode ? {4'h1, dst_f}
-	                                   : {4'h0, dst_f};
+	always_comb begin
+		if (fetch) begin
+			load_addr = {4'h0, dst_f};
+		end
+		case (opcode)
+			4'h3, 4'h8, 4'h9, 4'hA, 4'hB: begin
+				load_addr = {4'h1, dst_f};
+			end
+			default: begin
+				load_addr = {4'h0, dst_f};
+			end
+		endcase
+	end
 	
-	always @(*) begin
+	always_comb begin
 		case (dst_f)
 			4'h0: data_line = {{15{8'h00}}, f};
 			4'h1: data_line = {{14{8'h00}}, f, 8'h00};
@@ -68,7 +80,7 @@ module mx11seu(
 		.y(),
 		.flags(flags),
 		.opcode(opcode),
-		.a(a),
+		.a(ldi ? ldv : a),
 		.b(b),
 		.cs_n(cs_n)
 	);
