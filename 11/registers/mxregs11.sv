@@ -65,6 +65,7 @@ module mxreg_load_decoder_11#(
 				8'h11: load = 16'h0082; // FLAGS, X
 				8'h12: load = 16'h0084; // FLAGS, Y
 				8'h13: load = 16'h0088; // FLAGS, D
+				8'h16: load = 16'h0040; // INSP (FLAGS ignore)
 				8'h80: load = 16'h4040; // R2, INSP
 				default: load = 16'h0000;
 			endcase

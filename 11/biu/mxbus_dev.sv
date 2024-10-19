@@ -44,7 +44,8 @@ endmodule
 
 module mxbus_ram#(
     parameter integer ADDR_WIDTH = 8,
-    parameter integer DATA_WIDTH = 8
+    parameter integer DATA_WIDTH = 8,
+    parameter string RAM_INIT_FILE = ""
 )(  
     // MX Bus Write Slave
      input wire                  s0_wr_txn_start,
@@ -69,6 +70,22 @@ module mxbus_ram#(
 
     reg [DATA_WIDTH-1:0] mem [(2**ADDR_WIDTH)-1:0];
     bit [1:0] rd_state, wr_state;
+    integer fid, rb;
+
+    initial begin
+        if (RAM_INIT_FILE == "") begin
+            for (int i = 0; i < 2**ADDR_WIDTH; i++) begin
+                mem[i] = 'h0;
+            end
+        end else begin
+            fid = $fopen(RAM_INIT_FILE,"rb");
+            if (fid == 0) begin
+                $display("File Error!");
+            end
+            rb = $fread(mem, fid);
+            $display("Read %d bytes", rb);
+        end
+    end
     // integer x;
 
     always @(posedge clk) begin

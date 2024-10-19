@@ -26,7 +26,7 @@ module mx11seu(
 			load_addr = {4'h0, dst_f};
 		end
 		case (opcode)
-			4'h3, 4'h8, 4'h9, 4'hA, 4'hB: begin
+			4'h3, 4'h8, 4'h9, 4'hA, 4'hB, 4'hC, 4'hD: begin
 				load_addr = {4'h1, dst_f};
 			end
 			default: begin
@@ -37,22 +37,22 @@ module mx11seu(
 	
 	always_comb begin
 		case (dst_f)
-			4'h0: data_line = {{15{8'h00}}, f};
-			4'h1: data_line = {{14{8'h00}}, f, 8'h00};
-			4'h2: data_line = {{13{8'h00}}, f, {2{8'h00}}};
-			4'h3: data_line = {{12{8'h00}}, f, {3{8'h00}}};
-			4'h4: data_line = {{11{8'h00}}, f, {4{8'h00}}};
-			4'h5: data_line = {{10{8'h00}}, f, {5{8'h00}}};
-			4'h6: data_line = {{9{8'h00}}, f, {6{8'h00}}};
-			4'h7: data_line = {{8{8'h00}}, (|opcode ? f : {reg_line[7][7:5], flags}), {7{8'h00}}}; // FLAGS Handling
-			4'h8: data_line = {{7{8'h00}}, f, {8{8'h00}}};
-			4'h9: data_line = {{6{8'h00}}, f, {9{8'h00}}};
-			4'hA: data_line = {{5{8'h00}}, f, {10{8'h00}}};
-			4'hB: data_line = {{4{8'h00}}, f, {11{8'h00}}};
-			4'hC: data_line = {{3{8'h00}}, f, {12{8'h00}}};
-			4'hD: data_line = {{2{8'h00}}, f, {13{8'h00}}};
-			4'hE: data_line = {8'h00, f, {14{8'h00}}};
-			4'hF: data_line = {f, {15{8'h00}}};
+			4'h0: data_line = {{8{8'h00}}, {reg_line[7][7:5], flags}, {6{8'h00}}, f};
+			4'h1: data_line = {{8{8'h00}}, {reg_line[7][7:5], flags}, {5{8'h00}}, f, 8'h00};
+			4'h2: data_line = {{8{8'h00}}, {reg_line[7][7:5], flags}, {4{8'h00}}, f, {2{8'h00}}};
+			4'h3: data_line = {{8{8'h00}}, {reg_line[7][7:5], flags}, {3{8'h00}}, f, {3{8'h00}}};
+			4'h4: data_line = {{8{8'h00}}, {reg_line[7][7:5], flags}, {2{8'h00}}, f, {4{8'h00}}};
+			4'h5: data_line = {{8{8'h00}}, {reg_line[7][7:5], flags}, {1{8'h00}}, f, {5{8'h00}}};
+			4'h6: data_line = {{8{8'h00}}, {reg_line[7][7:5], flags}, f, {6{8'h00}}};
+			4'h7: data_line = {{8{8'h00}}, f, {7{8'h00}}}; // FLAGS Handling
+			4'h8: data_line = {{7{8'h00}}, f, {reg_line[7][7:5], flags}, {7{8'h00}}};
+			4'h9: data_line = {{6{8'h00}}, f, 8'h00, {reg_line[7][7:5], flags}, {7{8'h00}}};
+			4'hA: data_line = {{5{8'h00}}, f, {2{8'h00}}, {reg_line[7][7:5], flags}, {7{8'h00}}};
+			4'hB: data_line = {{4{8'h00}}, f, {3{8'h00}}, {reg_line[7][7:5], flags}, {7{8'h00}}};
+			4'hC: data_line = {{3{8'h00}}, f, {4{8'h00}}, {reg_line[7][7:5], flags}, {7{8'h00}}};
+			4'hD: data_line = {{2{8'h00}}, f, {5{8'h00}}, {reg_line[7][7:5], flags}, {7{8'h00}}};
+			4'hE: data_line = {8'h00, f, {6{8'h00}}, {reg_line[7][7:5], flags}, {7{8'h00}}};
+			4'hF: data_line = {f, {7{8'h00}}, {reg_line[7][7:5], flags}, {7{8'h00}}};
 		endcase
 	end
 
