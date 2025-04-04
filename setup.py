@@ -2,9 +2,9 @@ from setuptools import setup
 from Cython.Build import cythonize
 
 setup(
-	name="MX11_ALU",
+	name="MX11",
 	ext_modules=cythonize(
-		['MX11_ALU.pyx', 'CACHE.pyx', 'MX11.pyx', 'MXDEV.pyx', 'TEST_ROM.pyx'],
+		['MX11/MXALU11U.pyx', 'MX11/MXREGS.pyx', 'MX11/MX11SU_type1.pyx'],
 		compiler_directives={'language_level': '3'}
 	)
 )

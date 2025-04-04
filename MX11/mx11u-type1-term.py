@@ -2,63 +2,11 @@
 '''
     MX11 ALU Machine Terminal
 
-    OPCODE  MNEMONIC    Description
-    0x00    NOP         No Operation
-    0x01    NOT         Not Gate
-    0x02    INCR        A+1
-    0x03    DECR        A-1
-    0x04    AND         A AND B
-    0x05    NAND        0x01<-0x04
-    0x06    OR          A OR B
-    0x07    NOR         0x01<-0x06
-    0x08    XOR         A XOR B
-    0x09    XNOR        0x01<-0x08
-    0x0A    ADD         A + B
-    0x0B    NAD         A + 0x01<-B + 0x01
-    0x0C    SUB         A - B
-    0x0D    MUL         A x B
-    0x0E    DIV         A / B
-    0x0F    MOD         A mod B
-
-    FLAGS
-
-    CODE    SET
-    0x00    NO SET
-    0x01    ZERO
-    0x02    CARRY
-    0x03    CARRY ZERO
-    0x04    OVERFLOW
-    0x05    OVERFLOW ZERO
-    0x06    OVERFLOW CARRY
-    0x07    OVERFLOW CARRY ZERO
-    0x08    NEGATIVE
-    0x09    NEGATIVE ZERO
-    0x0A    NEGATIVE CARRY
-    0x0B    NEGATIVE CARRY ZERO
-    0x0C    NEGATIVE OVERFLOW
-    0x0D    NEGATIVE OVERFLOW ZERO
-    0x0E    NEGATIVE OVERFLOW CARRY
-    0x0F    NEGATIVE OVERFLOW CARRY ZERO
-    0xX0    RESERVED NO SET
-    0xX1    RESERVED ZERO
-    0xX2    RESERVED CARRY
-    0xX3    RESERVED CARRY ZERO
-    0xX4    RESERVED OVERFLOW
-    0xX5    RESERVED OVERFLOW ZERO
-    0xX6    RESERVED OVERFLOW CARRY
-    0xX7    RESERVED OVERFLOW CARRY ZERO
-    0xX8    RESERVED NEGATIVE
-    0xX9    RESERVED NEGATIVE ZERO
-    0xXA    RESERVED NEGATIVE CARRY
-    0xXB    RESERVED NEGATIVE CARRY ZERO
-    0xXC    RESERVED NEGATIVE OVERFLOW
-    0xXD    RESERVED NEGATIVE OVERFLOW ZERO
-    0xXE    RESERVED NEGATIVE OVERFLOW CARRY
-    0xXF    RESERVED NEGATIVE OVERFLOW CARRY ZERO
-
     COMMANDS    Description
     STOP        Stop Execution
-    CFLR        Check Flag Register/Show Flags
+    STEP        Check Step Result
+    RUN         Run the complete tape
+    REGS        Check Flag Register/Show Flags
 '''
 from ctypes import *
 from prompt_toolkit import PromptSession
@@ -97,8 +45,6 @@ def batch(call_queue: list):
             RES, _ = MX11_ALU(COMM[0], COMM[1], COMM[2])
         print(f"0x{n:02X} :    {RES:02X}")
 
-
-FLAGS = 0
 n = 0
 COMMS = PromptSession()
 call_queue = []
