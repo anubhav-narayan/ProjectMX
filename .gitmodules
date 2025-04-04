@@ -1,0 +1,3 @@
+[submodule "mxsm"]
+	path = mxsm
+	url = ./mxsm

@@ -5,7 +5,10 @@ description = "MX11 Experimental Strict 8-bit Organisation"
 authors = ["Anubhav Mattoo <anubhavmattoo@outlook.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.9"
+setuptools = "^78.1.0"
+cython = "^3.0.12"
+prompt-toolkit = "^3.0.50"
 
 [tool.poetry.dev-dependencies]
 

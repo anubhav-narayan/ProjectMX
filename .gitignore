@@ -2,3 +2,4 @@
 .archive
 *.cpython-*
 build
+*.c
