@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "MX11"
 version = "0.0.0"
-description = "MX11 Experimental Strict 8-bit Organisation"
+description = "MX Experimental Computer Organisation"
 authors = ["Anubhav Mattoo <anubhavmattoo@outlook.com>"]
 
 [tool.poetry.dependencies]
