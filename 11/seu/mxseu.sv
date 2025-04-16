@@ -22,11 +22,8 @@ module mx11seu(
 
 	// assign load_addr = |opcode & fetch ? {4'h0, dst_f} : {4'h1, dst_f};
 	always_comb begin
-		if (fetch) begin
-			load_addr = {4'h0, dst_f};
-		end
-		case (opcode)
-			4'h3, 4'h8, 4'h9, 4'hA, 4'hB, 4'hC, 4'hD: begin
+		case ({fetch, opcode}) inside
+			[5'h1:5'hF]: begin
 				load_addr = {4'h1, dst_f};
 			end
 			default: begin

@@ -42,7 +42,7 @@ module mxreg_load_decoder_11#(
 	 input  wire                     load_en
 );
 
-	always_ff @(*) begin
+	always_comb begin
 		if (load_en) begin
 			case (load_addr)
 				8'h00: load = 16'h0001; // A
