@@ -38,7 +38,7 @@ MXALU11U
 +-------+--------+-------------+---+-----+---+
 '''
 
-def MX11_ALU(OPCODE: int, OPERAND1: int, OPERAND2: int):
+def MXALU11U(OPCODE: int, OPERAND1: int, OPERAND2: int):
     FLAGS = 0x00
     # OPCODE Reuse as Holder
     if OPCODE == 0x00:

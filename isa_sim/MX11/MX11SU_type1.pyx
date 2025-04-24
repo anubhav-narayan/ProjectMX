@@ -1,7 +1,7 @@
 '''
     MX11SU Type 1 Instruction Simulator 
 '''
-from .MXREGS import MX_REGS
+from .MXREGS import MXREGS
 from .MXALU11U import MX11_ALU
 from time import sleep
 
