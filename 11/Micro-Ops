@@ -1,0 +1,142 @@
+Micro-Ops
+
+Buses:
+	MRd: Main Read Bus
+	ARd: Auxillary Read Bus
+	MWr: Main Write Bus
+	AWr: Auxillary Write Bus
+
+Units:
+	Main Control Unit (MCU)
+	Instruction Fetch Unit (IFU)
+	Data Fetch Unit (DFU)
+	Instruction Decode-Execute Unit (IDEX)
+	Load-Store Unit (LSU)
+	Register File (RF)
+
+Conventions:
+	Read Bus Address Drive: Read Bus <- Unit[value/reg]
+	Read Bus Data Access: Unit <- Read Bus
+	Raw Register Write: REG <- Unit | Read Bus
+	Unit Action: Write Bus <- Unit(Opcode, Address) | Unit(Reg)
+
+Fetch:
+	1. MRd <- IFU[0x6]         // Get INSP(0x6) from RF via MRd
+	2. IFU <- MRd              // IFU receives INSP from MRd
+	3. IDEX <- MRd             // IDEX receives INSP from MRd
+	4. INSR <- IFU             // Load fetched instruction into INSR from IFU
+	5. MWr <- IDEX(INCR, 0x6)  // Process INCR in IDEX for INSP(0x6)
+	MCU Pattern: MRd:0x6 MWr:0x6 IDEX:INCR
+
+Decode-Execute (Data Movement Class):
+	1. MRd <- IDEX[INSR[3:0]]      // Get source register from RF via MRd using INSR[3:0] as address
+	2. IDEX <- MRd                 // IDEX receives source register value from MRd
+	3. MWr <- IDEX(MOV, INSR[6:4]) // Process MOV in IDEX for INSR[6:4] as destination register
+	MCU Pattern: MRd:INSR[3:0] MWr:INSR[6:4] IDEX:MOV
+
+Decode-Execute (Unary Class):
+	1. MRd <- IDEX[INSR[2:0]] 	// Get source register from RF via MRd using INSR[2:0] as address
+	2. IDEX <- MRd            	// IDEX receives source register value from MRd
+	3. MWr <- IDEX(INSR[5:4], INSR[2:0]) // Process unary operation in IDEX for INSR[5:4] as opcode and INSR[2:0] as destination register
+	MCU Pattern: MRd:INSR[2:0] MWr:INSR[2:0] IDEX:INSR[5:4]
+
+Decode-Execute (Flow Control Class):
+	1. MRd <- IDEX[INSR[2:0]] 	// Get source register from RF via MRd using INSR[2:0] as address
+	2. IDEX <- MRd              // IDEX receives source register value from MRd
+	3. ARd <- IDEX[0x6]         // Get INSP(0x6) from RF via ARd
+	4. IDEX <- ARd              // IDEX receives INSP from ARd
+	5. MWr <- IDEX(INSR[3]?MOV:ADD, 0x6) // Process MOV or ADD in IDEX for INSR[3] as condition and 0x6 as destination register
+	6. MCU(INSR[4]?FLAGS[1]==1:FLAGS[0]==1)   // Check condition flags based on INSR[4] for flow control BC if 1 else BZ
+	MCU Pattern: MRd:INSR[2:0] ARd:0x6 MWr:0x6 IDEX:INSR[3]?MOV:ADD MCU:INSR[4]
+
+Decode-Execute (Binary Class):
+	1. MRd <- IDEX[MCU[INSR[1:0]]] 	// Get source register from RF via MRd using INSR[1:0] as address
+	2. IDEX <- MRd              // IDEX receives source register value from MRd
+	3. ARd <- IDEX[MCU[INSR[1:0]]]   // Get second source register from RF via ARd using INSR[1:0] as address
+	4. IDEX <- ARd              // IDEX receives second source register value from ARd
+	5. MWr <- IDEX(INSR[4:2], MCU[INSR[1:0]]) // Process binary operation in IDEX for INSR[4:2] as opcode and INSR[1:0] as destination register
+	MCU Pattern: MRd:INSR[1:0] ARd:INSR[1:0] MWr:INSR[1:0] IDEX:INSR[4:2] MCU:INSR[1:0]
+
+Decode-Execute (Load Immediate Class):
+	1. MWr <- IDEX(MOV, 0x5, INSR[3:0]) // Write immediate value from INSR[3:0] to destination register in RF via MWr using MOV opcode in IDEX
+	MCU Pattern: MWr:0x5,INSR[3:0] IDEX:MOV 
+
+Decode-Execute (DSEL):
+	1. MRd <- IDEX[0x0] 	// Get source register A from RF via MRd
+	2. IDEX <- MRd         // IDEX receives source register A value from MRd
+	3. MWr <- IDEX(MOV, 0x4) // Process MOV in IDEX for DAR(0x4) as destination register in RF via MWr
+	MCU Pattern: MRd:0x0 MWr:0x4 IDEX:MOV
+
+Decode-Execute (DNXT):
+	1. MRd <- IDEX[0x4] 	// Get source register DAR from RF via MRd
+	2. IDEX <- MRd         // IDEX receives source register A value from MRd
+	3. MWr <- IDEX(INCR, 0x4) // Process INCR in IDEX for DAR(0x4) as destination register in RF via MWr
+	MCU Pattern: MRd:0x4 MWr:0x4 IDEX:INCR
+
+Decode-Execute (DPRV):
+	1. MRd <- IDEX[0x4] 	// Get source register DAR from RF via MRd
+	2. IDEX <- MRd         // IDEX receives source register A value from MRd
+	3. MWr <- IDEX(DECR, 0x4) // Process DECR in IDEX for DAR(0x4) as destination register in RF via MWr
+	MCU Pattern: MRd:0x4 MWr:0x4 IDEX:DECR
+
+Decode-Execute (DRET):
+	1. MWr <- IDEX(CLR, 0x4) // Write value 0x0 to DAR(0x4) in RF via MWr using CLR opcode in IDEX
+	MCU Pattern: MWr:0x4,0x0 IDEX:CLR
+
+Decode-Execute (CTXS):
+    1. MRd <- IDEX[0x7] 	// Get source register FLAGS from RF via MRd
+    2. IDEX <- MRd        // IDEX receives source register FLAGS value from MRd
+    3. MWr <- IDEX(OR, 0x7, imm8(0x40)) // Process OR in IDEX for FLAGS(0x7) as destination register in RF via MWr with immediate value 0x40
+    MCU Pattern: MRd:0x7 MWr:0x7 IDEX:OR imm8:0x40
+
+Decode-Execute (CRET):
+    1. MRd <- IDEX[0x7] 	// Get source register FLAGS from RF via MRd
+    2. IDEX <- MRd        // IDEX receives source register FLAGS value from MRd
+    3. MWr <- IDEX(AND, 0x7, imm8(0xBF)) // Process AND in IDEX for FLAGS(0x7) as destination register in RF via MWr with immediate value 0xBF
+    MCU Pattern: MRd:0x7 MWr:0x7 IDEX:AND imm8:0xBF
+
+Decode-Execute (IRQ):
+    1. MRd <- IDEX[0x7] 	// Get source register FLAGS from RF via MRd
+    2. IDEX <- MRd        // IDEX receives source register FLAGS value from MRd
+    3. MWr <- IDEX(OR, 0x7, imm8(0x80)) // Process OR in IDEX for FLAGS(0x7) as destination register in RF via MWr with immediate value 0x80
+    MCU Pattern: MRd:0x7 MWr:0x7 IDEX:OR imm8:0x80
+
+Decode-Execute (RTI):
+    1. MRd <- IDEX[0x7] 	// Get source register FLAGS from RF via MRd
+    2. IDEX <- MRd        // IDEX receives source register FLAGS value from MRd
+    3. MWr <- IDEX(AND, 0x7, imm8(0x7F)) // Process AND in IDEX for FLAGS(0x7) as destination register in RF via MWr with immediate value 0x7F
+    MCU Pattern: MRd:0x7 MWr:0x7 IDEX:AND imm8:0x7F
+
+Decode-Execute (BRZ):
+    1. MRd <- IDEX[0x3] 	// Get source register D from RF via MRd
+    2. IDEX <- MRd         // IDEX receives source register A value from MRd
+    3. MWr <- IDEX(MOV, 0x6) // Process MOV in IDEX for INSP(0x6) as destination register in RF via MWr
+    MCU Pattern: MRd:0x0 MWr:0x6 IDEX:MOV
+
+Decode-Execute (SFA):
+   1. MRd <- IDEX[0x7] 	// Get source register FLAGS from RF via MRd
+   2. IDEX <- MRd        // IDEX receives source register FLAGS value from MRd
+   3. ARd <- IDEX[0x0]   // Get source register A from RF via ARd
+   4. IDEX <- ARd        // IDEX receives source register A value from ARd
+   5. MWr <- IDEX(OR, 0x7, 0x0) // Process OR in IDEX for FLAGS(0x7) as destination register in RF via MWr with immediate value 0x40
+   MCU Pattern: MRd:0x7 ARd:0x0 MWr:0x7 IDEX:OR
+
+Decode-Execute (LFA):
+    1. MRd <- IDEX[0x0] 	// Get source register A from RF via MRd
+    2. IDEX <- MRd        // IDEX receives source register A value from MRd
+    3. MWr <- IDEX(MOV, 0x0) // Process MOV in IDEX for A(0x0) as destination register in RF via MWr
+    MCU Pattern: MRd:0x0 MWr:0x7 IDEX:MOV
+
+Decode-Execute (LD):
+	1. MRd <- IDEX[0x3]     // Get source register D from RF via MRd
+	2. LSU <- MRd             // LSU receives source register D value from MRd
+	3. MWr <- LSU(LOAD, 0x0)    // Process LOAD in LSU for A(0x0) as destination register in RF via MWr
+	MCU Pattern: MRd:0x3 MWr:0x4 LSU:LOAD
+
+Decode-Execute (ST):
+	1. MRd <- IDEX[0x3]     // Get source register D from RF via MRd
+	2. ARd <- IDEX[0x4]   // Get MBR from RF via ARd
+	3. LSU <- MRd             // LSU receives source register D value from MRd
+	4. LSU <- ARd             // LSU receives MBR value from ARd
+	3. LSU(STORE, 0x0)   // Process STORE in LSU for A(0x0) as destination register in RF via MWr
+	MCU Pattern: MRd:0x3 ARd:0x4 LSU:STORE

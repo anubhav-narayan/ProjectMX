@@ -38,7 +38,7 @@ module mxbiu_ins#(
 
     // Internal Signal
      input wire [ADDR_WIDTH-1:0] insp,
-     input wire                  ce_n,
+     input wire                  get_ins,
     output wire [DATA_WIDTH-1:0] insr,
     output wire                  valid,
 
@@ -67,7 +67,7 @@ module mxbiu_ins#(
 		end else begin
 			case (rd_state)
 				2'h0: begin // IDLE
-					if (m0_rd_ready & ~ce_n) begin
+					if (m0_rd_ready & get_ins) begin
 						rd_txn_start_r <= 1'b1;
 						rd_state <= 2'h1; // TXN_START
 					end
