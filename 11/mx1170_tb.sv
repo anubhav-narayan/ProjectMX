@@ -30,7 +30,8 @@ module mx1170_tb;
 
     mxbus_rom #(
         .ADDR_WIDTH(8),
-        .DATA_WIDTH(8)
+        .DATA_WIDTH(8),
+        .ROM_FILE("./ins.bin")
     ) rom (
         .clk(clk),
         .rst(rst_sys[1]),

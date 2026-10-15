@@ -1,0 +1,56 @@
+; Test Programme
+; Programmer: Anubhav Mattoo
+
+
+.macro SHL
+    MOV X, A
+    ADD A, X
+.endmacro
+
+.macro LOADI upper, lower
+    LDI \upper
+    MOV A, MBR
+    SHL
+    SHL
+    SHL
+    SHL
+    LDI \lower
+    MOV X, MBR
+    OR A, X
+.endmacro
+
+.data
+
+.ins
+    LOADI 0x4, 0x0
+    MOV Y, A
+
+.org 0x10
+wait:
+    HALT
+    LOADI 0x1, 0x0
+    MOV D, A
+    CLR A
+    BRZ
+
+.nmi
+    MOV SA, A
+    MOV SD, D
+    MOV SX, FLAGS
+    LOADI 0xF, 0x0
+    MOV D, A
+    LD
+    MOV D, Y
+    ST
+    INCR Y
+    LOADI 0xF, 0x1
+    MOV D, A
+    ST
+    MOV A, SX
+    LFA
+    MOV A, SA
+    MOV D, SD
+    RTI
+
+.irq
+    RTI
