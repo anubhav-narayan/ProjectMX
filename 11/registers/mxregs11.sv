@@ -13,6 +13,8 @@ module mxregs11 (
 	 input wire [3:0] a_wr_addr,
 	 input wire [7:0] a_wr_data,
 	 input wire       a_wr_le,
+	// Peripheral Registers
+	output logic [7:0] reg_flags,
 	// Interrupts
 	 input wire nmi,
 	 input wire irq,
@@ -31,6 +33,8 @@ module mxregs11 (
 			write_mask[15:8] = 8'h00; // Disable writes to registers 8-15 during CTXS
 		end
 	end
+
+	assign reg_flags = regs[7]; // FLAGS register is at index 7
 
     // Write logic
     always_ff @(posedge clk) begin

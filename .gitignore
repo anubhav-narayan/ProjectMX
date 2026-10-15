@@ -11,3 +11,8 @@
 *env/
 *alu/
 *qprj/
+11/transcript
+11/vsim.dbg
+11/vsim.wlf
+11/mx1170_tb/*
+11/mx1170/*

@@ -1,5 +1,5 @@
 module mx11_70#(
-    parameter integer IRQ_VECTOR = 8'hF0,
+    parameter integer IRQ_VECTOR = 8'hC0,
     parameter integer NMI_VECTOR = 8'h80
 )(
     // MX Bus Read Master Instruction
@@ -36,56 +36,62 @@ module mx11_70#(
 );
 
     // ALU opcode constants
-    enum logic [3:0] {
-        ALU_BUF  = 4'h0,
-        ALU_CLR  = 4'h1,
-        ALU_NOT  = 4'h2,
-        ALU_XOR  = 4'h3,
-        ALU_AND  = 4'h4,
-        ALU_OR   = 4'h5,
-        ALU_INCR = 4'h8,
-        ALU_DECR = 4'h9,
-        ALU_ADD  = 4'hA,
-        ALU_ADC  = 4'hB,
-        ALU_SUB  = 4'hC,
-        ALU_SBB  = 4'hD,
-        ALU_CMP  = 4'hE
-    } alu_ins, dex_alu_ins;
+    localparam logic [3:0] ALU_BUF  = 4'h0;
+    localparam logic [3:0] ALU_CLR  = 4'h1;
+    localparam logic [3:0] ALU_NOT  = 4'h2;
+    localparam logic [3:0] ALU_XOR  = 4'h3;
+    localparam logic [3:0] ALU_AND  = 4'h4;
+    localparam logic [3:0] ALU_OR   = 4'h5;
+    localparam logic [3:0] ALU_INCR = 4'h8;
+    localparam logic [3:0] ALU_DECR = 4'h9;
+    localparam logic [3:0] ALU_ADD  = 4'hA;
+    localparam logic [3:0] ALU_ADC  = 4'hB;
+    localparam logic [3:0] ALU_SUB  = 4'hC;
+    localparam logic [3:0] ALU_SBB  = 4'hD;
+    localparam logic [3:0] ALU_CMP  = 4'hE;
+    logic [3:0] alu_ins;
 
     // Mandatory Internal Registers
     logic [7:0] rta, rtf, insr;
-    enum logic[7:0] {
-        HALT,
-        FETCH,
-        DEX,
-        LOAD_STORE,
-        IRQ_FETCH,
-        IRQ_DEX,
-        NMI_FETCH,
-        NMI_DEX
-    } mstate, mstate_next;
+    typedef enum logic [2:0] {
+        FETCH      = 3'd0,
+        POST       = 3'd1,
+        DEX        = 3'd2,
+        LOAD_STORE = 3'd3,
+        HALT       = 3'd4
+    } mstate_t;
+    mstate_t mstate, mstate_next;
+    typedef enum logic [1:0] {
+        NO_INTERRUPT = 2'd0,
+        IRQ_SERVICE  = 2'd1,
+        NMI_SERVICE  = 2'd2
+    } interrupt_mode_t;
+    interrupt_mode_t interrupt_mode, interrupt_mode_next;
+    logic m_wr_le, a_wr_le, ldi;
+    logic [7:0] imm8;
     reg nmi_r, irq_r;
 
     // Internal Wires
-    wire fetch, fetch_done;
-    wire irq_insr, nmi_insr, halt_insr, rti_insr;
-    wire [7:0] flags_alu, flags_o;
+    logic fetch, fetch_done;
+    logic irq_insr, nmi_insr, halt_insr, rti_insr;
+    logic unserviced_nmi, unserviced_irq;
+    logic [7:0] flags_alu, flags_o;
 
     // Main Read Bus
-    wire [3:0] m_rd_addr;
-    wire [7:0] m_rd_data;
+    logic [3:0] m_rd_addr;
+    logic [7:0] m_rd_data;
 
     // Main Write Bus
-    wire [3:0] m_wr_addr;
-    wire [7:0] m_wr_data;
+    logic [3:0] m_wr_addr;
+    logic [7:0] m_wr_data;
 
     // Auxillary Read Bus
-    wire [3:0] a_rd_addr;
-    wire [7:0] a_rd_data;
+    logic [3:0] a_rd_addr;
+    logic [7:0] a_rd_data;
 
     // Auxillary Write Bus
-    wire [3:0] a_wr_addr;
-    wire [7:0] a_wr_data;
+    logic [3:0] a_wr_addr;
+    logic [7:0] a_wr_data;
 
     typedef struct packed {
         logic       ldi;
@@ -109,10 +115,7 @@ module mx11_70#(
     insr_t seu_insr;
     
     // SYS Decoder
-    mx11_sys_rom #(
-        .IRQ_VECTOR(IRQ_VECTOR),
-        .NMI_VECTOR(NMI_VECTOR)
-    ) sys_rom (
+    mx11_sys_rom sys_rom (
         .insr(insr[3:0]),
         .ldi(sys_insr.ldi),
         .imm8(sys_insr.imm8),
@@ -140,14 +143,16 @@ module mx11_70#(
     );
 
     assign dex_insr = (insr[7:4] == 4'hF) ? sys_insr : seu_insr; // Control ISA MUX
+    assign irq_insr = (insr == 8'hF6);
+    assign nmi_insr = (insr == 8'hFE);
+    assign rti_insr = (insr == 8'hF7);
     assign halt_insr = (insr == 8'hFF);
+    assign unserviced_nmi = nmi_r && (interrupt_mode != NMI_SERVICE);
+    assign unserviced_irq = irq_r && (interrupt_mode == NO_INTERRUPT);
 
     // Instruction Fetch
-    assign fetch = (mstate==FETCH) || (mstate==NMI_FETCH) || (mstate==IRQ_FETCH);
-    mx11_ins_fetch #(
-        .ADDR_WIDTH(8),
-        .DATA_WIDTH(8)
-    ) inst_mx11_ins_fetch (
+    assign fetch = (mstate == FETCH);
+    mx11_ins_fetch inst_mx11_ins_fetch (
         .insp             (m_rd_data),
         .ins_rd_txn_start (ins_rd_txn_start),
         .ins_rd_data      (ins_rd_data),
@@ -214,7 +219,7 @@ module mx11_70#(
         .flags_in(flags_o),
         .flags(flags_alu),
         .carry_in(flags_o[1]),
-        .carry_out(flags_alu[0])
+        .carry_out()
     );
 
     // Register File
@@ -229,6 +234,7 @@ module mx11_70#(
         .a_wr_addr(a_wr_addr),
         .a_wr_data(a_wr_data),
         .a_wr_le(a_wr_le),
+        .reg_flags(flags_o),
         .nmi(nmi_r),
         .irq(irq_r),
         .clk(clk),
@@ -239,10 +245,12 @@ module mx11_70#(
     always_ff @(posedge clk) begin : main_fsm
         if (rst) begin
             mstate <= FETCH;
+            interrupt_mode <= NO_INTERRUPT;
             nmi_r <= 1'b0;
             irq_r <= 1'b0;
         end else begin
             mstate <= mstate_next;
+            interrupt_mode <= interrupt_mode_next;
             if (nmi || nmi_insr) begin
                 // If there is an NMI signal or the current instruction is an NMI instruction, set the NMI pending flag
                 nmi_r <= 1'b1;
@@ -267,14 +275,16 @@ module mx11_70#(
         a_wr_addr = 4'h0;
         a_wr_le = 1'b0;
         a_rd_addr = 4'h0;
-        load_flags = 1'b0;
+        ldi = 1'b0;
+        imm8 = 8'h00;
         alu_ins = ALU_BUF;
-        flags_i = 7'h0;
+        mstate_next = mstate;
+        interrupt_mode_next = interrupt_mode;
         case (mstate)
             FETCH: begin
                 if (fetch_done) begin
-                    // Go to DEX to decode and execute the instruction.
-                    mstate_next = DEX;
+                    // Go to POST for INSP increment and then to DEX for instruction decode and execution.
+                    mstate_next = POST;
                     m_rd_addr = 4'h6; // Read Address INSP(0x6)
                     m_wr_addr = 4'h6; // Write Address INSP(0x6)
                     m_wr_le = 1'b1; // Load INCR INSP into INSP
@@ -283,11 +293,17 @@ module mx11_70#(
                     mstate_next = FETCH;
                 end
             end
+            POST: begin
+                // Go to DEX to decode and execute the instruction.
+                mstate_next = DEX;
+            end
             DEX: begin
-                if (nmi_r) begin  // Check if there was an NMI, service that first
-                    mstate_next = NMI_FETCH;
-                end else if (irq_r) begin // Check if there was an IRQ, if so service that next
-                    mstate_next = IRQ_FETCH;
+                if (unserviced_nmi) begin
+                    mstate_next = FETCH;
+                    interrupt_mode_next = NMI_SERVICE;
+                end else if (unserviced_irq) begin
+                    mstate_next = FETCH;
+                    interrupt_mode_next = IRQ_SERVICE;
                 end else if (halt_insr) begin // Check if the instruction is HALT, if so stay in HALT state until an interrupt occurs
                     mstate_next = HALT;
                 end else begin  // Normal instruction execution path
@@ -300,114 +316,38 @@ module mx11_70#(
                     m_wr_le = dex_insr.m_wr_le;
                     a_wr_le = dex_insr.a_wr_le;
                     alu_ins = dex_insr.alu_ins;
-                    if (load & load_ready) begin
-                        mstate_next = LOAD_STORE;
-                    end else if (load & ~load_ready) begin
-                        // Wait for load to be ready
-                        mstate_next = DEX;
-                    end else begin
+                    if (rti_insr) begin
                         mstate_next = FETCH;
-                    end
-                    if (store & store_ready) begin
-                        mstate_next = LOAD_STORE;
-                    end else if (store & ~store_ready) begin
-                        // Wait for store to be ready
-                        mstate_next = DEX;
+                        interrupt_mode_next = NO_INTERRUPT;
+                    end else if (load) begin
+                        mstate_next = load_ready ? LOAD_STORE : DEX;
+                    end else if (store) begin
+                        mstate_next = store_ready ? LOAD_STORE : DEX;
                     end else begin
                         mstate_next = FETCH;
                     end
                 end
             end
             LOAD_STORE: begin
-                if (nmi_r) begin
-                    mstate_next = NMI_FETCH;
+                if (unserviced_nmi) begin
+                    mstate_next = FETCH;
+                    interrupt_mode_next = NMI_SERVICE;
                 end else if ((load_valid) | (store_valid)) begin
-
                     mstate_next = FETCH;
                 end else begin
                     mstate_next = LOAD_STORE;
                 end
             end
             HALT: begin
-                if (nmi_r) begin  // Check if there was an NMI, service that first
-                    // In HALT, NMI is the normal path to execute and not an interrupt.
+                if (unserviced_nmi || unserviced_irq) begin
                     mstate_next = FETCH;
                 end else begin  // Stay in HALT state until an interrupt occurs
                     mstate_next = HALT;
                 end
             end
-            IRQ_FETCH: begin
-                // Save current INSP to RTA
-                // Save current Flags to RTF
-                // Load INSP with IRQ_VECTOR
-                if (fetch_done) begin
-                    m_rd_addr = 4'h6; // Read Address INSP(0x6)
-                    m_wr_addr = 4'h6; // Write Address INSP(0x6)
-                    m_wr_le = 1'b1; // Load INCR INSP into INSP
-                    alu_ins = ALU_INCR; // ALU operation to increment INSP
-                    mstate_next = IRQ_DEX; 
-                end else begin
-                    mstate_next = IRQ_FETCH; 
-                end
-            end
-            IRQ_DEX: begin
-                if (nmi_r) begin  // Check if there was an NMI, service that first
-                    // Set Interrupt Disable Flag, Save INSP and Flags to RTA and RTF
-                    // Load INSP with NMI_VECTOR
-                    mstate_next = NMI_FETCH;
-                end else if(rti_insr) begin // Check if the instruction is RTI, if so return from interrupt
-                    // Clear Interrupt Disable Flag,
-                    // Restore INSP from RTA
-                    // Restore Flags from RTF
-                    mstate_next = FETCH;
-                end else if (halt_insr) begin // Check if the instruction is HALT, if so stay in HALT state until an interrupt occurs
-                    mstate_next = HALT;
-                end else begin  // Normal instruction execution path for instructions following an IRQ
-                    ldi = dex_insr.ldi;
-                    imm8 = dex_insr.imm8;
-                    m_wr_addr = dex_insr.m_wr_addr;
-                    m_rd_addr = dex_insr.m_rd_addr;
-                    a_wr_addr = dex_insr.a_wr_addr;
-                    a_rd_addr = dex_insr.a_rd_addr;
-                    m_wr_le = dex_insr.m_wr_le;
-                    a_wr_le = dex_insr.a_wr_le;
-                    alu_ins = dex_insr.alu_ins;
-                    mstate_next = IRQ_FETCH;
-                end
-            end
-            NMI_FETCH: begin
-                // Save current INSP to RTA
-                // Save current Flags to RTF
-                // Load INSP with NMI_VECTOR
-                if (fetch_done) begin
-                    m_rd_addr = 4'h6; // Read Address INSP(0x6)
-                    m_wr_addr = 4'h6; // Write Address INSP(0x6)
-                    m_wr_le = 1'b1; // Load INCR INSP into INSP
-                    alu_ins = ALU_INCR; // ALU operation to increment INSP
-                    mstate_next = NMI_DEX; 
-                end else begin
-                    mstate_next = NMI_FETCH;
-                end
-            end
-            NMI_DEX: begin
-                if(rti_insr) begin // Check if the instruction is RTI, if so return from interrupt
-                    // Clear Interrupt Disable Flag,
-                    // Restore INSP from RTA
-                    // Restore Flags from RTF
-                    mstate_next = FETCH;
-                end else if (halt_insr) begin // Check if the instruction is HALT, if so stay in HALT state until an interrupt occurs
-                    mstate_next = HALT;
-                end else begin  // Normal instruction execution path for instructions following an NMI
-                    ldi = dex_insr.ldi;
-                    imm8 = dex_insr.imm8;
-                    m_wr_addr = dex_insr.m_wr_addr;
-                    m_rd_addr = dex_insr.m_rd_addr;
-                    a_wr_addr = dex_insr.a_wr_addr;
-                    a_rd_addr = dex_insr.a_rd_addr;
-                    m_wr_le = dex_insr.m_wr_le;
-                    a_wr_le = dex_insr.a_wr_le;
-                    mstate_next = NMI_FETCH;
-                end
+            default: begin
+                mstate_next = FETCH;
+                interrupt_mode_next = NO_INTERRUPT;
             end
         endcase
     end

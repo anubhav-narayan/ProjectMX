@@ -27,7 +27,7 @@ module seu11_rom (
     } = rom[insr];
 
     initial begin
-        $readmemh("seu.hex", rom);
+        $readmemh("/home/sakae/ProjectMX/11/alu11/seu.hex", rom);
     end
 
 endmodule
