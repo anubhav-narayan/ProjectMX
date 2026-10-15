@@ -23,11 +23,10 @@
 
 .ins
     LOADI 0x4, 0x0
-    MOV Y, A
-
-.org 0x10
-wait:
+    MOV Y, A ; Y is the RAM Pointer
     HALT
+
+wait:
     LOADI 0x1, 0x0
     MOV D, A
     CLR A
