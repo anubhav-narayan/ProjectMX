@@ -15,6 +15,8 @@ module mxregs11 (
 	 input wire       a_wr_le,
 	// Peripheral Registers
 	output logic [7:0] reg_flags,
+	output logic [7:0] reg_insp,
+	output logic [7:0] reg_dar,
 	// Interrupts
 	 input wire nmi,
 	 input wire irq,
@@ -35,6 +37,8 @@ module mxregs11 (
 	end
 
 	assign reg_flags = regs[7]; // FLAGS register is at index 7
+	assign reg_insp  = regs[6]; // INSP register is at index 6
+	assign reg_dar   = regs[5]; // DAR register is at index 5
 
     // Write logic
     always_ff @(posedge clk) begin

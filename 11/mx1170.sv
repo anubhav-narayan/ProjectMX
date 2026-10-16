@@ -1,6 +1,6 @@
 module mx11_70#(
-    parameter integer IRQ_VECTOR = 8'hC0,
-    parameter integer NMI_VECTOR = 8'h80
+    parameter logic [7:0] IRQ_VECTOR = 8'hC0,
+    parameter logic [7:0] NMI_VECTOR = 8'h80
 )(
     // MX Bus Read Master Instruction
     output  wire       ins_rd_txn_start,
@@ -52,15 +52,23 @@ module mx11_70#(
     logic [3:0] alu_ins;
 
     // Mandatory Internal Registers
-    logic [7:0] rta, rtf, insr;
-    typedef enum logic [2:0] {
-        FETCH      = 3'd0,
-        POST       = 3'd1,
-        DEX        = 3'd2,
-        LOAD_STORE = 3'd3,
-        HALT       = 3'd4
+    logic [7:0] rta, rtf, insr, rtd;
+    logic [7:0] irq_rta, irq_rtf, irq_rtd;
+    logic nmi_resume_irq, nmi_resume_irq_next;
+    typedef enum logic [3:0] {
+        FETCH             = 4'd0,
+        POST              = 4'd1,
+        DEX               = 4'd2,
+        LOAD_STORE        = 4'd3,
+        HALT              = 4'd4,
+        INT_ENTRY         = 4'd5,
+        INT_VECTOR        = 4'd6,
+        RTI_RESTORE_INSP    = 4'd7,
+        RTI_RESTORE_DAR   = 4'd8,
+        RTI_RESTORE_FLAGS = 4'd9
     } mstate_t;
     mstate_t mstate, mstate_next;
+
     typedef enum logic [1:0] {
         NO_INTERRUPT = 2'd0,
         IRQ_SERVICE  = 2'd1,
@@ -70,6 +78,7 @@ module mx11_70#(
     logic m_wr_le, a_wr_le, ldi;
     logic [7:0] imm8;
     reg nmi_r, irq_r;
+    logic [7:0] insp_r, dar_r;
 
     // Internal Wires
     logic fetch, fetch_done;
@@ -151,9 +160,9 @@ module mx11_70#(
     assign unserviced_irq = irq_r && (interrupt_mode == NO_INTERRUPT);
 
     // Instruction Fetch
-    assign fetch = (mstate == FETCH);
+    assign fetch = (mstate == FETCH) && !unserviced_nmi && !unserviced_irq;
     mx11_ins_fetch inst_mx11_ins_fetch (
-        .insp             (m_rd_data),
+        .insp             (insp_r),
         .ins_rd_txn_start (ins_rd_txn_start),
         .ins_rd_data      (ins_rd_data),
         .ins_rd_ready     (ins_rd_ready),
@@ -235,6 +244,8 @@ module mx11_70#(
         .a_wr_data(a_wr_data),
         .a_wr_le(a_wr_le),
         .reg_flags(flags_o),
+        .reg_insp(insp_r),
+        .reg_dar(dar_r),
         .nmi(nmi_r),
         .irq(irq_r),
         .clk(clk),
@@ -246,11 +257,19 @@ module mx11_70#(
         if (rst) begin
             mstate <= FETCH;
             interrupt_mode <= NO_INTERRUPT;
+            nmi_resume_irq <= 1'b0;
             nmi_r <= 1'b0;
             irq_r <= 1'b0;
+            rta <= 8'h00;
+            rtf <= 8'h00;
+            rtd <= 8'h00;
+            irq_rta <= 8'h00;
+            irq_rtf <= 8'h00;
+            irq_rtd <= 8'h00;
         end else begin
             mstate <= mstate_next;
             interrupt_mode <= interrupt_mode_next;
+            nmi_resume_irq <= nmi_resume_irq_next;
             if (nmi || nmi_insr) begin
                 // If there is an NMI signal or the current instruction is an NMI instruction, set the NMI pending flag
                 nmi_r <= 1'b1;
@@ -259,10 +278,18 @@ module mx11_70#(
                 // If there is an IRQ signal or the current instruction is an IRQ instruction, set the IRQ pending flag
                 irq_r <= 1'b1;
             end
-            if (rti_insr) begin
-                // If the current instruction is an RTI instruction, clear the interrupt pending flags
-                nmi_r <= 1'b0;
-                irq_r <= 1'b0;
+            if (mstate == INT_ENTRY) begin
+                if (interrupt_mode == NMI_SERVICE) begin
+                    rta <= insp_r;
+                    rtf <= flags_o;
+                    rtd <= dar_r;
+                    nmi_r <= 1'b0;
+                end else if (interrupt_mode == IRQ_SERVICE) begin
+                    irq_rta <= insp_r;
+                    irq_rtf <= flags_o;
+                    irq_rtd <= dar_r;
+                    irq_r <= 1'b0;
+                end
             end
         end
     end
@@ -280,9 +307,18 @@ module mx11_70#(
         alu_ins = ALU_BUF;
         mstate_next = mstate;
         interrupt_mode_next = interrupt_mode;
+        nmi_resume_irq_next = nmi_resume_irq;
         case (mstate)
             FETCH: begin
-                if (fetch_done) begin
+                if (unserviced_nmi) begin
+                    mstate_next = INT_ENTRY;
+                    interrupt_mode_next = NMI_SERVICE;
+                    nmi_resume_irq_next = (interrupt_mode == IRQ_SERVICE);
+                end else if (unserviced_irq) begin
+                    mstate_next = INT_ENTRY;
+                    interrupt_mode_next = IRQ_SERVICE;
+                    nmi_resume_irq_next = 1'b0;
+                end else if (fetch_done) begin
                     // Go to POST for INSP increment and then to DEX for instruction decode and execution.
                     mstate_next = POST;
                     m_rd_addr = 4'h6; // Read Address INSP(0x6)
@@ -298,13 +334,7 @@ module mx11_70#(
                 mstate_next = DEX;
             end
             DEX: begin
-                if (unserviced_nmi) begin
-                    mstate_next = FETCH;
-                    interrupt_mode_next = NMI_SERVICE;
-                end else if (unserviced_irq) begin
-                    mstate_next = FETCH;
-                    interrupt_mode_next = IRQ_SERVICE;
-                end else if (halt_insr) begin // Check if the instruction is HALT, if so stay in HALT state until an interrupt occurs
+                if (halt_insr) begin // Check if the instruction is HALT, if so stay in HALT state until an interrupt occurs
                     mstate_next = HALT;
                 end else begin  // Normal instruction execution path
                     ldi = dex_insr.ldi;
@@ -317,8 +347,7 @@ module mx11_70#(
                     a_wr_le = dex_insr.a_wr_le;
                     alu_ins = dex_insr.alu_ins;
                     if (rti_insr) begin
-                        mstate_next = FETCH;
-                        interrupt_mode_next = NO_INTERRUPT;
+                        mstate_next = (interrupt_mode == NO_INTERRUPT) ? FETCH : RTI_RESTORE_INSP;
                     end else if (load) begin
                         mstate_next = load_ready ? LOAD_STORE : DEX;
                     end else if (store) begin
@@ -329,25 +358,61 @@ module mx11_70#(
                 end
             end
             LOAD_STORE: begin
-                if (unserviced_nmi) begin
-                    mstate_next = FETCH;
-                    interrupt_mode_next = NMI_SERVICE;
-                end else if ((load_valid) | (store_valid)) begin
+                if ((load_valid) | (store_valid)) begin
                     mstate_next = FETCH;
                 end else begin
                     mstate_next = LOAD_STORE;
                 end
             end
             HALT: begin
-                if (unserviced_nmi || unserviced_irq) begin
+                if (unserviced_nmi) begin
                     mstate_next = FETCH;
-                end else begin  // Stay in HALT state until an interrupt occurs
+                end else begin  // Stay in HALT state until an NM interrupt occurs
                     mstate_next = HALT;
                 end
+            end
+            // Interrupt entry/exit preserves context and gives NMI priority over IRQ.
+            INT_ENTRY: begin
+                mstate_next = INT_VECTOR;
+            end
+            INT_VECTOR: begin
+                ldi = 1'b1;
+                imm8 = (interrupt_mode == NMI_SERVICE) ? NMI_VECTOR[7:0] : IRQ_VECTOR[7:0];
+                m_wr_addr = 4'h6;
+                m_wr_le = 1'b1;
+                mstate_next = FETCH;
+            end
+            RTI_RESTORE_INSP: begin
+                ldi = 1'b1;
+                imm8 = (interrupt_mode == IRQ_SERVICE) ? irq_rta : rta;
+                m_wr_addr = 4'h6;
+                m_wr_le = 1'b1;
+                mstate_next = RTI_RESTORE_DAR;
+            end
+            RTI_RESTORE_DAR: begin
+                ldi = 1'b1;
+                imm8 = (interrupt_mode == IRQ_SERVICE) ? irq_rtd : rtd;
+                m_wr_addr = 4'h5;
+                m_wr_le = 1'b1;
+                mstate_next = RTI_RESTORE_FLAGS;
+            end
+            RTI_RESTORE_FLAGS: begin
+                ldi = 1'b1;
+                imm8 = (interrupt_mode == IRQ_SERVICE) ? irq_rtf : rtf;
+                m_wr_addr = 4'h7;
+                m_wr_le = 1'b1;
+                if ((interrupt_mode == NMI_SERVICE) && nmi_resume_irq) begin
+                    interrupt_mode_next = IRQ_SERVICE;
+                end else begin
+                    interrupt_mode_next = NO_INTERRUPT;
+                end
+                nmi_resume_irq_next = 1'b0;
+                mstate_next = FETCH;
             end
             default: begin
                 mstate_next = FETCH;
                 interrupt_mode_next = NO_INTERRUPT;
+                nmi_resume_irq_next = 1'b0;
             end
         endcase
     end
