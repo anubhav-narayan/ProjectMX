@@ -149,7 +149,18 @@ module mx11_70#(
         .alu_ins(seu_insr.alu_ins)
     );
 
-    assign dex_insr = (insr[7:4] == 4'hF) ? sys_insr : seu_insr; // Control ISA MUX
+    always_comb begin
+        if (insr[7]) begin
+            dex_insr = seu_insr;
+        end else begin
+            case (dar_r)
+                // No Other Extensions Implemented Yet
+                default: begin
+                    dex_insr = sys_insr;
+                end 
+            endcase
+        end
+    end
     assign irq_insr = (insr == 8'hF6);
     assign nmi_insr = (insr == 8'hFE);
     assign rti_insr = (insr == 8'hF7);
@@ -247,6 +258,8 @@ module mx11_70#(
         .reg_dar(dar_r),
         .nmi(nmi_r),
         .irq(irq_r),
+        .insp_wr_le(1'b0),
+        .insp_wr_data(8'h00),
         .clk(clk),
         .rst(rst)
     );

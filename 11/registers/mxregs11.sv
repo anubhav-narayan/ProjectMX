@@ -1,4 +1,6 @@
-module mxregs11 (
+module mxregs11 #(
+	parameter bit PIPELINE_INSP_WRITE = 1'b0
+) (
 	// Main Read Bus
 	 input  wire [3:0] m_rd_addr,
 	output logic [7:0] m_rd_data,
@@ -20,6 +22,9 @@ module mxregs11 (
 	// Interrupts
 	 input wire nmi,
 	 input wire irq,
+	// Dedicated INSP update for pipelined fetch
+	 input wire       insp_wr_le,
+	 input wire [7:0] insp_wr_data,
 	// CLK & RST
 	 input wire clk,
 	 input wire rst
@@ -53,6 +58,9 @@ module mxregs11 (
 				for (int i = 0; i < 7; i++) begin
 					regs[8+i] <= regs[i]; // Save context: regs[8-16] = regs[0-7]
 				end
+				if (PIPELINE_INSP_WRITE && insp_wr_le) begin
+					regs[14] <= insp_wr_data;
+				end
 				regs[15][5:0] <= regs[7][5:0]; // Save FLAGS register (0x7) to context
 			end
 			if (!ctxs && ctxs_d) begin
@@ -76,6 +84,9 @@ module mxregs11 (
             	if (a_wr_le && write_mask[a_wr_addr]) begin
             		regs[a_wr_addr] <= a_wr_data;
             	end
+			end
+			if (PIPELINE_INSP_WRITE && insp_wr_le && write_mask[4'h6]) begin
+				regs[4'h6] <= insp_wr_data;
 			end
         end
     end

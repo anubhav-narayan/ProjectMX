@@ -23,33 +23,4 @@
 
 .ins
     LOADI 0x4, 0x0
-    MOV Y, A ; Y is the RAM Pointer
     HALT
-
-wait:
-    LOADI 0x1, 0x0
-    MOV D, A
-    CLR A
-    BRZ
-
-.nmi
-    MOV SA, A
-    MOV SD, D
-    MOV SX, FLAGS
-    LOADI 0xF, 0x0
-    MOV D, A
-    LD
-    MOV D, Y
-    ST
-    INCR Y
-    LOADI 0xF, 0x1
-    MOV D, A
-    ST
-    MOV A, SX
-    LFA
-    MOV A, SA
-    MOV D, SD
-    RTI
-
-.irq
-    RTI

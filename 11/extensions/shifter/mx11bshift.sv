@@ -1,41 +1,29 @@
 module mx11bshift (
-    // Register Bus
-     input logic [15:0][7:0] reg_line,
-    output logic [15:0][7:0] data_line,
-    output logic       [7:0] load_addr,
-    // Operation
-     input logic             lr,
-     input logic       [3:0] opcode,
-     input logic             bs_ce
+    // MX/11 main register-file read and write buses
+    output logic [3:0] m_rd_addr,
+    input  logic [7:0] m_rd_data,
+    output logic [3:0] m_wr_addr,
+    output logic [7:0] m_wr_data,
+    output logic       m_wr_le,
+
+    // Shift controls are supplied by the extension decoder.
+    input logic [7:0] opcode,
+    input logic       bs_ce
 );
 
-    logic [7:0] data;
     logic [7:0] shifted;
 
-    assign load_addr = 8'h00;
-
-    reg_tap #(
-        .DATA_WIDTH(8),
-        .DEPTH(16)
-    ) inst_reg_tap (
-        .data     (data),
-        .reg_line (reg_line),
-        .reg_addr (4'h0)
-    );
-
-    always_comb begin
-        for (int i = 0; i < 16; i++) begin
-            data_line[i] = shifted;
-        end
-    end
+    assign m_wr_addr = opcode[5] ? 4'h0 : 4'h3;
+    assign m_rd_addr = opcode[6] ? 4'h0 : 4'h3;
+    assign m_wr_le = bs_ce & ~opcode[7];
 
     barrel_shift_8bit inst_barrel_shift_8bit (
         .en    (~bs_ce),
-        .lr    (lr),
+        .lr    (opcode[4]),
         .rot   (opcode[3]),
-        .data  (data),
+        .data  (m_rd_data),
         .shift (opcode[2:0]),
-        .out   (shifted)
+        .out   (m_wr_data)
     );
 
 endmodule

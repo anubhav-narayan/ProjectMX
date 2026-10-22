@@ -1,4 +1,6 @@
-module seu11_rom (
+module seu11_rom #(
+    parameter ROM_FILE = "./alu11/seu.hex"
+) (
     input  logic [7:0] insr,
 
     output logic       ldi,
@@ -27,7 +29,7 @@ module seu11_rom (
     } = rom[insr];
 
     initial begin
-        $readmemh("/home/sakae/ProjectMX/11/alu11/seu.hex", rom);
+        $readmemh(ROM_FILE, rom);
     end
 
 endmodule
