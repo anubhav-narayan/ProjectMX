@@ -127,13 +127,20 @@ async def test_ctx_lock(dut):
     uut = MXREGS_11(dut)
     uut.setup()
     await uut.reset()
+    # Write to INSP
+    await uut.write_main(0x6, 0x55)
     # Set CTXS flag in FLAGS register (0x7)
     await uut.write_main(0x7, 0x40)  # Set CTXS bit
     # Attempt to write to registers 8-15 (should be locked)
     for addr in range(8, 16):
         await uut.write_main(addr, 0xAA)
         reg = await uut.read_main(addr)
-        assert reg == 0x00, f"Register {addr} should be locked during CTXS, but got {reg:#04x}"
+        assert reg != 0xAA, f"Register {addr} should be locked during CTXS, but got {reg:#04x}"
+    # Attempt to write to registers 0-8 (should not be locked)
+    for addr in range(0, 7):
+        await uut.write_main(addr, 0xAA)
+        reg = await uut.read_main(addr)
+        assert reg == 0xAA, f"Register {addr} should not be locked during CTXS, but got {reg:#04x}"
     # Clear CTXS flag
     await uut.write_main(0x7, 0x00)  # Clear CTXS bit
     # Now writes to registers 8-15 should succeed
@@ -141,6 +148,9 @@ async def test_ctx_lock(dut):
         await uut.write_main(addr, 0xAA)
         reg = await uut.read_main(addr)
         assert reg == 0xAA, f"Register {addr} should be writable after CTXS cleared, but got {reg:#04x}"
+    # Check that INSP register (0x6) is still 0x55
+    insp_reg = await uut.read_main(0x6)
+    assert insp_reg == 0x55, f"INSP register should retain its value, but got {insp_reg:#04x}"
 
 async def test_nmi_irq(dut):
     from random import randint

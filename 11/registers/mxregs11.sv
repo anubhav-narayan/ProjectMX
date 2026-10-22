@@ -28,6 +28,7 @@ module mxregs11 (
 	logic [15:0][7:0] regs;
 	logic [15:0] write_mask;
 	wire ctxs = regs[7][6]; // Context Switch Flag in FLAGS register (0x7)
+	logic ctxs_d; // Delayed version of ctxs for edge detection
 
 	always_comb begin
 		write_mask = 16'hFFFF; // Default: all registers writable
@@ -47,8 +48,23 @@ module mxregs11 (
 	            regs[i] <= 8'h0;
         	end
         end else begin
-			if (nmi | irq) begin
+			ctxs_d <= ctxs;
+			if (ctxs && !ctxs_d) begin
+				for (int i = 0; i < 7; i++) begin
+					regs[8+i] <= regs[i]; // Save context: regs[8-16] = regs[0-7]
+				end
+				regs[15][5:0] <= regs[7][5:0]; // Save FLAGS register (0x7) to context
+			end
+			if (!ctxs && ctxs_d) begin
+				for (int i = 0; i < 8; i++) begin
+					regs[i] <= regs[8+i]; // Restore context: regs[0-7] = regs[8-16]
+				end
+			end
+			if (nmi) begin
 				regs[7][7] <= 1'b1; // Set NMI/IRQ flag in FLAGS register (0x7)
+			end
+			if (irq & ~regs[7][7]) begin
+				regs[7][7] <= 1'b1; // Set IRQ flag in FLAGS register (0x7)
 			end
 			if (m_wr_le && a_wr_le && (m_wr_addr == a_wr_addr) && write_mask[m_wr_addr]) begin
             	// Conflict: main write wins
