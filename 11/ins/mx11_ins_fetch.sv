@@ -20,6 +20,21 @@ module mx11_ins_fetch(
 	 input  wire rst
 );
 
+	reg [7:0] insp_r;
+	reg fetch_r;
+
+	always_ff @(posedge clk) begin
+		if (rst) begin
+			insp_r <= 8'h0;
+			fetch_r <= 1'b0;
+		end else begin
+			if (fetch) begin
+				insp_r <= insp;
+			end
+			fetch_r <= fetch;
+		end
+	end
+	
 	mxbiu_ins #(
 		.ADDR_WIDTH(8),
 		.DATA_WIDTH(8)
@@ -30,8 +45,8 @@ module mx11_ins_fetch(
 		.m0_rd_addr      (ins_rd_addr),
 		.m0_rd_txn_ack   (ins_rd_txn_ack),
 		.m0_rd_txn_cpl   (ins_rd_txn_cpl),
-		.insp            (insp),
-		.get_ins         (fetch),
+		.insp            (insp_r),
+		.get_ins         (fetch_r),
 		.insr            (insr),
 		.valid           (fetch_done),
 		.clk             (clk),

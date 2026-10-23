@@ -13,12 +13,11 @@ module mx11bshift (
 
     logic [7:0] shifted;
 
-    assign m_wr_addr = opcode[5] ? 4'h0 : 4'h3;
-    assign m_rd_addr = opcode[6] ? 4'h0 : 4'h3;
+    assign m_wr_addr = m_rd_addr = 4'h0;
     assign m_wr_le = bs_ce & ~opcode[7];
 
     barrel_shift_8bit inst_barrel_shift_8bit (
-        .en    (~bs_ce),
+        .en    (bs_ce),
         .lr    (opcode[4]),
         .rot   (opcode[3]),
         .data  (m_rd_data),

@@ -61,7 +61,7 @@ module mx11_71#(
         HALT              = 4'd4,
         INT_ENTRY         = 4'd5,
         INT_VECTOR        = 4'd6,
-        RTI_RESTORE_INSP    = 4'd7,
+        RTI_RESTORE_INSP  = 4'd7,
         RTI_RESTORE_DAR   = 4'd8,
         RTI_RESTORE_FLAGS = 4'd9
     } mstate_t;
@@ -123,6 +123,7 @@ module mx11_71#(
     
     // SYS Wirings
     insr_t sys_insr;
+    wr_t sys_wr;
 
     // SEU Wirings
     insr_t seu_insr;
@@ -160,23 +161,7 @@ module mx11_71#(
         .alu_ins(seu_insr.alu_ins)
     );
 
-    always_comb begin
-        if (insr[7]) begin
-            dex_insr = sys_insr;
-            main_wr = seu_wr;
-        end else begin
-            case (dar_r)
-                8'h01: begin // DAR = 0x01 -> MXSHIFT/11 instruction
-                    dex_insr = shifter_insr;
-                    main_wr = shifter_wr;
-                end
-                default: begin
-                    dex_insr = seu_insr;
-                    main_wr = seu_wr;
-                end 
-            endcase
-        end
-    end
+    
     assign irq_insr = (insr == 8'hF6);
     assign nmi_insr = (insr == 8'hFE);
     assign rti_insr = (insr == 8'hF7);
@@ -211,6 +196,28 @@ module mx11_71#(
     assign store = (insr == 8'hFD);
     assign load = (insr == 8'hFC);
 
+    always_comb begin
+        if (insr[7]) begin
+            dex_insr = sys_insr;
+            main_wr = load ? sys_wr : seu_wr;
+        end else begin
+            case (dar_r)
+                8'h00: begin // DAR = 0x00 -> SEU/11 instruction
+                    dex_insr = seu_insr;
+                    main_wr = seu_wr;
+                end
+                8'h01: begin // DAR = 0x01 -> MXSHIFT/11 instruction
+                    dex_insr = shifter_insr;
+                    main_wr = shifter_wr;
+                end
+                default: begin
+                    dex_insr = 'h0;
+                    main_wr = 'h0;
+                end
+            endcase
+        end
+    end
+
     // LSU
     mx11_lsu #(
         .ADDR_WIDTH(8),
@@ -229,7 +236,7 @@ module mx11_71#(
         .data_wr_data     (data_wr_data),
         .data_wr_ready    (data_wr_ready),
         .rd_addr          (m_rd_data),
-        .rdata            (lsu_rd_data),
+        .rdata            (sys_wr.m_wr_data),
         .load_ready       (load_ready),
         .load             (load),
         .load_valid       (load_valid),
