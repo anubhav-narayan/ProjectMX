@@ -2,6 +2,8 @@ module mx11_71#(
     parameter logic [7:0] IRQ_VECTOR = 8'hC0,
     parameter logic [7:0] NMI_VECTOR = 8'h80
 )(
+    // Instruction Page Address
+    output  wire [7:0] ins_page_addr,
     // MX Bus Read Master Instruction
     output  wire       ins_rd_txn_start,
      input  wire [7:0] ins_rd_data,
@@ -10,6 +12,8 @@ module mx11_71#(
      input  wire       ins_rd_txn_ack,
      input  wire       ins_rd_txn_cpl,
 
+    // Instruction Page Address
+    output  wire [7:0] data_page_addr,
     // MX Bus Write Master Data
     output  wire       data_wr_txn_start,
     output  wire [7:0] data_wr_data,
@@ -25,6 +29,16 @@ module mx11_71#(
     output  wire [7:0] data_rd_addr,
      input  wire       data_rd_txn_ack,
      input  wire       data_rd_txn_cpl,
+
+    // 32-bit MX Bus Read Master for loadable SEU microcode profiles
+    output  wire        microcode_rd_txn_start,
+     input  wire [31:0] microcode_rd_data,
+     input  wire        microcode_rd_ready,
+    output  wire [9:0]  microcode_rd_addr,
+     input  wire        microcode_rd_txn_ack,
+     input  wire        microcode_rd_txn_cpl,
+    output  wire        microcode_profile_lock,
+    output  wire [1:0]  microcode_locked_profile,
 
     // Interrupt
      input  wire nmi,
@@ -83,6 +97,10 @@ module mx11_71#(
     logic irq_insr, nmi_insr, halt_insr, rti_insr;
     logic unserviced_nmi, unserviced_irq;
     logic [7:0] flags_alu, flags_o;
+    logic microcode_busy, use_loadable_microcode;
+    logic microcode_profile_wr_en;
+    logic [7:0] microcode_profile_wr_addr;
+    logic [30:0] microcode_profile_wr_data;
 
     // Main Read Bus
     logic [3:0] m_rd_addr;
@@ -129,6 +147,9 @@ module mx11_71#(
     insr_t seu_insr;
     wr_t seu_wr;
 
+    // PAGE CTRL Wirings
+    insr_t page_insr;
+
     // Shifter Wirings
     insr_t shifter_insr;
     wr_t shifter_wr;
@@ -148,8 +169,13 @@ module mx11_71#(
     );
 
     // SEU Decoder
-    seu11_rom seu_rom (
+    seu11_profile_rom seu_rom (
+        .clk(clk),
         .insr(insr),
+        .use_profile(use_loadable_microcode),
+        .profile_wr_en(microcode_profile_wr_en),
+        .profile_wr_addr(microcode_profile_wr_addr),
+        .profile_wr_data(microcode_profile_wr_data),
         .ldi(seu_insr.ldi),
         .imm8(seu_insr.imm8),
         .m_rd_addr(seu_insr.m_rd_addr),
@@ -159,6 +185,25 @@ module mx11_71#(
         .a_wr_le(seu_insr.a_wr_le),
         .a_wr_addr(seu_insr.a_wr_addr),
         .alu_ins(seu_insr.alu_ins)
+    );
+
+    seu11_microcode_controller inst_seu11_microcode_controller (
+        .clk(clk),
+        .rst(rst),
+        .dar(dar_r),
+        .cfg_rd_txn_start(microcode_rd_txn_start),
+        .cfg_rd_data(microcode_rd_data),
+        .cfg_rd_ready(microcode_rd_ready),
+        .cfg_rd_addr(microcode_rd_addr),
+        .cfg_rd_txn_ack(microcode_rd_txn_ack),
+        .cfg_rd_txn_cpl(microcode_rd_txn_cpl),
+        .busy(microcode_busy),
+        .use_profile(use_loadable_microcode),
+        .cfg_profile_lock(microcode_profile_lock),
+        .cfg_locked_profile(microcode_locked_profile),
+        .profile_wr_en(microcode_profile_wr_en),
+        .profile_wr_addr(microcode_profile_wr_addr),
+        .profile_wr_data(microcode_profile_wr_data)
     );
 
     
@@ -171,7 +216,11 @@ module mx11_71#(
     assign unserviced_irq = irq_r && (interrupt_mode == NO_INTERRUPT) && !flags_o[7];
 
     // Instruction Fetch
-    assign fetch = (mstate == FETCH) && !unserviced_nmi && !unserviced_irq;
+    assign fetch =
+        (mstate == FETCH) &&
+        !microcode_busy &&
+        !unserviced_nmi &&
+        !unserviced_irq;
     mx11_ins_fetch inst_mx11_ins_fetch (
         .insp             (insp_r),
         .ins_rd_txn_start (ins_rd_txn_start),
@@ -209,6 +258,13 @@ module mx11_71#(
                 8'h01: begin // DAR = 0x01 -> MXSHIFT/11 instruction
                     dex_insr = shifter_insr;
                     main_wr = shifter_wr;
+                end
+                8'h02: begin // DAR = 0x02 -> MXPAGE/11 instruction
+                    dex_insr = page_insr;
+                end
+                8'h04, 8'h05, 8'h06, 8'h07: begin
+                    dex_insr = seu_insr;
+                    main_wr = seu_wr;
                 end
                 default: begin
                     dex_insr = 'h0;
@@ -273,6 +329,20 @@ module mx11_71#(
         .m_wr_le(shifter_insr.m_wr_le),
         .opcode(insr[7:0]),
         .bs_ce(dar_r == 8'h01)
+    );
+
+    // Page Controller
+    page_ctrl inst_page_ctrl (
+        .m_rd_addr(page_insr.m_rd_addr),
+        .m_rd_data(m_rd_data),
+        .nmi(nmi_r),
+        .irq(irq_r),
+        .insr(insr[7:0]),
+        .ipage(ins_page_addr),
+        .dpage(data_page_addr),
+        .ex_ce(dar_r == 8'h02),
+        .clk(clk),
+        .rst(rst)
     );
 
     // Register File
@@ -347,7 +417,9 @@ module mx11_71#(
         interrupt_mode_next = interrupt_mode;
         case (mstate)
             FETCH: begin
-                if (unserviced_nmi) begin
+                if (microcode_busy) begin
+                    mstate_next = FETCH;
+                end else if (unserviced_nmi) begin
                     mstate_next = INT_ENTRY;
                     interrupt_mode_next = NMI_SERVICE;
                 end else if (unserviced_irq) begin

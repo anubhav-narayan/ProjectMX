@@ -6,6 +6,13 @@ The "simple" 8-bit machine
 |:-:|
 | *MX11SU Architecture* |
 ---
+
+### MX/11 System Block Diagram
+
+[![MX/11 system block diagram](images/MX11-system-block-diagram.svg)](images/MX11-system-block-diagram.svg)
+
+*Technical-manual-style organization diagram of the MX/11 core, separate instruction/data buses, and execution units.*
+
 This is a Harvard Computer, where each component is a character in our sitcom, working together to keep the show running smoothly.
 
 1. **Register File**:

@@ -1,6 +1,4 @@
-module page_ctrl#(
-    parameter RESET_PAGE = 8'h00
-)(
+module page_ctrl(
     // MX/11 register-file read buses: main selects DAR, auxiliary selects MBR.
     output logic [3:0] m_rd_addr,
     input  logic [7:0] m_rd_data,
@@ -37,10 +35,10 @@ SET NMIPAGE, reg | 0x30-0x3F | Set the non-maskable interrupt page to the value 
 
     always_ff @(posedge clk) begin
         if (rst) begin
-            ipage_r <= RESET_PAGE;
-            dpage_r <= RESET_PAGE;
-            irqpage_r <= RESET_PAGE;
-            nmipage_r <= RESET_PAGE;
+            ipage_r <= 8'h00;
+            dpage_r <= 8'h00;
+            irqpage_r <= 8'h00;
+            nmipage_r <= 8'h00;
         end else begin
             case (insr[7:4])
                 4'h0: ipage_r <= m_rd_data; // SET IPAGE, reg

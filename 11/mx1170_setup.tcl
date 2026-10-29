@@ -14,6 +14,9 @@ proc mx_com {} {
 
     vlog -sv -work mx1170 ./alu11/seu11.sv
     vlog -sv -work mx1170 ./alu11/seu11_rom.sv
+    vlog -sv -work mx1170 ./alu11/seu11_profile_rom.sv
+    vlog -sv -work mx1170 ./alu11/seu11_config_mem.sv
+    vlog -sv -work mx1170 ./alu11/seu11_microcode_controller.sv
     vlog -sv -work mx1170 ./alu11/alu11.sv
     vlog -sv -work mx1170 ./alu11/alu11_cell.sv
     vlog -sv -work mx1170 ./alu11/alu_cell.sv
