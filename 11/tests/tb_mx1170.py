@@ -124,5 +124,86 @@ async def test_instruction_execution_and_halt(dut):
 
     assert uut.register_value(0x0) == 2
     assert uut.register_value(0x6) == 3
-    assert {address for address, _ in uut.instruction_transactions} == {0, 1, 2}
+    assert [address for address, _ in uut.instruction_transactions] == [
+        0,
+        0,
+        1,
+        1,
+        2,
+        2,
+    ]
+    assert uut.write_transactions == []
+
+
+@cocotb.test()
+async def test_nmi_interrupt_sequence_and_resume(dut):
+    uut = MX1170(dut)
+    uut.setup([0x88, 0x88, 0xFF])
+    uut.instruction_memory[0x80:0x82] = [0x88, 0xF7]
+    await uut.start()
+
+    while not uut.instruction_transactions:
+        await RisingEdge(uut.clk)
+        await Timer(1, "ns")
+
+    uut.nmi.value = 1
+    await RisingEdge(uut.clk)
+    await Timer(1, "ns")
+    uut.nmi.value = 0
+
+    await uut.run_until_halt(cycle_limit=200)
+
+    assert [address for address, _ in uut.instruction_transactions] == [
+        0,
+        0,
+        0x80,
+        0x80,
+        0x81,
+        0x81,
+        1,
+        1,
+        2,
+        2,
+    ]
+    assert uut.register_value(0x0) == 3
+    assert uut.register_value(0x6) == 3
+    assert uut.write_transactions == []
+
+
+@cocotb.test()
+async def test_irq_interrupt_sequence_and_resume(dut):
+    uut = MX1170(dut)
+    uut.setup([0x88, 0x88, 0xFF])
+    uut.instruction_memory[0xC0:0xC2] = [0x88, 0xF7]
+    await uut.start()
+
+    for _ in range(50):
+        await RisingEdge(uut.clk)
+        await Timer(1, "ns")
+        if int(dut.mstate.value) == 2:
+            break
+    else:
+        raise AssertionError("CPU did not reach instruction execution")
+
+    uut.irq.value = 1
+    await RisingEdge(uut.clk)
+    await Timer(1, "ns")
+    uut.irq.value = 0
+
+    await uut.run_until_halt(cycle_limit=200)
+
+    assert [address for address, _ in uut.instruction_transactions] == [
+        0,
+        0,
+        0xC0,
+        0xC0,
+        0xC1,
+        0xC1,
+        1,
+        1,
+        2,
+        2,
+    ]
+    assert uut.register_value(0x0) == 3
+    assert uut.register_value(0x6) == 3
     assert uut.write_transactions == []

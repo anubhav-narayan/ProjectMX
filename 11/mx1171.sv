@@ -246,6 +246,8 @@ module mx11_71#(
     assign load = (insr == 8'hFC);
 
     always_comb begin
+        dex_insr = '0;
+        main_wr = seu_wr;
         if (insr[7]) begin
             dex_insr = sys_insr;
             main_wr = load ? sys_wr : seu_wr;
@@ -257,10 +259,10 @@ module mx11_71#(
                 end
                 8'h01: begin // DAR = 0x01 -> MXSHIFT/11 instruction
                     dex_insr = shifter_insr;
-                    main_wr = shifter_wr;
+                    main_wr = (mstate == DEX) ? shifter_wr : seu_wr;
                 end
                 8'h02: begin // DAR = 0x02 -> MXPAGE/11 instruction
-                    dex_insr = page_insr;
+                    dex_insr.m_rd_addr = page_insr.m_rd_addr;
                 end
                 8'h04, 8'h05, 8'h06, 8'h07: begin
                     dex_insr = seu_insr;
@@ -268,7 +270,6 @@ module mx11_71#(
                 end
                 default: begin
                     dex_insr = 'h0;
-                    main_wr = 'h0;
                 end
             endcase
         end
@@ -340,7 +341,7 @@ module mx11_71#(
         .insr(insr[7:0]),
         .ipage(ins_page_addr),
         .dpage(data_page_addr),
-        .ex_ce(dar_r == 8'h02),
+        .ex_ce((dar_r == 8'h02) && (mstate == DEX)),
         .clk(clk),
         .rst(rst)
     );

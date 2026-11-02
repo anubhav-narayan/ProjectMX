@@ -40,13 +40,15 @@ SET NMIPAGE, reg | 0x30-0x3F | Set the non-maskable interrupt page to the value 
             irqpage_r <= 8'h00;
             nmipage_r <= 8'h00;
         end else begin
-            case (insr[7:4])
-                4'h0: ipage_r <= m_rd_data; // SET IPAGE, reg
-                4'h1: dpage_r <= m_rd_data; // SET DPAGE, reg
-                4'h2: irqpage_r <= m_rd_data; // SET IRQPAGE, reg
-                4'h3: nmipage_r <= m_rd_data; // SET NMIPAGE, reg
-                default: begin end
-            endcase
+            if (ex_ce) begin
+                case (insr[7:4])
+                    4'h0: ipage_r <= m_rd_data; // SET IPAGE, reg
+                    4'h1: dpage_r <= m_rd_data; // SET DPAGE, reg
+                    4'h2: irqpage_r <= m_rd_data; // SET IRQPAGE, reg
+                    4'h3: nmipage_r <= m_rd_data; // SET NMIPAGE, reg
+                    default: begin end
+                endcase
+            end
         end
     end
 
