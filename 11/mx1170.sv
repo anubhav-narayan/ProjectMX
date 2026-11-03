@@ -151,13 +151,13 @@ module mx11_70#(
 
     always_comb begin
         if (insr[7]) begin
-            dex_insr = seu_insr;
+            dex_insr = sys_insr;
         end else begin
             case (dar_r)
                 // No Other Extensions Implemented Yet
                 default: begin
-                    dex_insr = sys_insr;
-                end 
+                    dex_insr = seu_insr;
+                end
             endcase
         end
     end
@@ -190,7 +190,7 @@ module mx11_70#(
     wire store_ready, load_ready;
     wire store, load;
     wire store_valid, load_valid;
-    wire [7:0] lsu_rd_data;
+    wire [7:0] lsu_rd_data, seu_wr_data;
 
     assign store = (insr == 8'hFD);
     assign load = (insr == 8'hFC);
@@ -230,7 +230,7 @@ module mx11_70#(
     seu11 inst_seu11 (
         .m_rd_data(m_rd_data),
         .a_rd_data(a_rd_data),
-        .m_wr_data(m_wr_data),
+        .m_wr_data(seu_wr_data),
         .a_wr_data(a_wr_data),
         .ldi(ldi),
         .imm8(imm8),
@@ -263,6 +263,8 @@ module mx11_70#(
         .clk(clk),
         .rst(rst)
     );
+
+    assign m_wr_data = load ? lsu_rd_data : seu_wr_data;
 
 
     always_ff @(posedge clk) begin : main_fsm
@@ -359,6 +361,7 @@ module mx11_70#(
                 end
             end
             LOAD_STORE: begin
+                m_wr_le = load_valid;
                 if ((load_valid) | (store_valid)) begin
                     mstate_next = FETCH;
                 end else begin
@@ -393,7 +396,7 @@ module mx11_70#(
             RTI_RESTORE_DAR: begin
                 ldi = 1'b1;
                 imm8 = rtd;
-                m_wr_addr = 4'h5;
+                m_wr_addr = 4'h4;
                 m_wr_le = 1'b1;
                 mstate_next = RTI_RESTORE_FLAGS;
             end

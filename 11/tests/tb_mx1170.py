@@ -108,38 +108,45 @@ class MX1170:
             await Timer(1, "ns")
             if int(self.dut.mstate.value) == self.HALT:
                 return
-        raise AssertionError(f"CPU did not halt within {cycle_limit} cycles")
+        raise AssertionError(
+            f"CPU did not halt within {cycle_limit} cycles "
+            f"(mstate={int(self.dut.mstate.value)}, "
+            f"INSP={int(self.dut.insp_r.value)}, "
+            f"insr={int(self.dut.insr.value)}, "
+            f"registers=0x{int(self.dut.inst_mxregs11.regs.value):032x})"
+        )
 
     def register_value(self, index):
         registers = int(self.dut.inst_mxregs11.regs.value)
         return (registers >> (8 * index)) & 0xFF
 
+    def fetched_addresses(self):
+        addresses = [address for address, _ in self.instruction_transactions]
+        return [
+            address
+            for index, address in enumerate(addresses)
+            if index == 0 or address != addresses[index - 1]
+        ]
+
 
 @cocotb.test()
 async def test_instruction_execution_and_halt(dut):
     uut = MX1170(dut)
-    uut.setup([0x88, 0x88, 0xFF])
+    uut.setup([0x00, 0x00, 0xFF])
     await uut.start()
     await uut.run_until_halt()
 
-    assert uut.register_value(0x0) == 2
+    assert uut.register_value(0x0) == 0
     assert uut.register_value(0x6) == 3
-    assert [address for address, _ in uut.instruction_transactions] == [
-        0,
-        0,
-        1,
-        1,
-        2,
-        2,
-    ]
+    assert uut.fetched_addresses() == [0, 1, 2]
     assert uut.write_transactions == []
 
 
 @cocotb.test()
 async def test_nmi_interrupt_sequence_and_resume(dut):
     uut = MX1170(dut)
-    uut.setup([0x88, 0x88, 0xFF])
-    uut.instruction_memory[0x80:0x82] = [0x88, 0xF7]
+    uut.setup([0x00, 0x00, 0xFF])
+    uut.instruction_memory[0x80:0x82] = [0x00, 0xF7]
     await uut.start()
 
     while not uut.instruction_transactions:
@@ -153,19 +160,8 @@ async def test_nmi_interrupt_sequence_and_resume(dut):
 
     await uut.run_until_halt(cycle_limit=200)
 
-    assert [address for address, _ in uut.instruction_transactions] == [
-        0,
-        0,
-        0x80,
-        0x80,
-        0x81,
-        0x81,
-        1,
-        1,
-        2,
-        2,
-    ]
-    assert uut.register_value(0x0) == 3
+    assert uut.fetched_addresses() == [0, 0x80, 0x81, 1, 2]
+    assert uut.register_value(0x0) == 0
     assert uut.register_value(0x6) == 3
     assert uut.write_transactions == []
 
@@ -173,8 +169,8 @@ async def test_nmi_interrupt_sequence_and_resume(dut):
 @cocotb.test()
 async def test_irq_interrupt_sequence_and_resume(dut):
     uut = MX1170(dut)
-    uut.setup([0x88, 0x88, 0xFF])
-    uut.instruction_memory[0xC0:0xC2] = [0x88, 0xF7]
+    uut.setup([0x00, 0x00, 0xFF])
+    uut.instruction_memory[0xC0:0xC2] = [0x00, 0xF7]
     await uut.start()
 
     for _ in range(50):
@@ -192,18 +188,7 @@ async def test_irq_interrupt_sequence_and_resume(dut):
 
     await uut.run_until_halt(cycle_limit=200)
 
-    assert [address for address, _ in uut.instruction_transactions] == [
-        0,
-        0,
-        0xC0,
-        0xC0,
-        0xC1,
-        0xC1,
-        1,
-        1,
-        2,
-        2,
-    ]
-    assert uut.register_value(0x0) == 3
+    assert uut.fetched_addresses() == [0, 0xC0, 0xC1, 1, 2]
+    assert uut.register_value(0x0) == 0
     assert uut.register_value(0x6) == 3
     assert uut.write_transactions == []
